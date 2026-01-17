@@ -1,0 +1,1 @@
+command example; .\copyparty.exe -a admin:1234 -v "D:/Archivos:archivos:r:rw,admin"
