@@ -163,6 +163,122 @@
 		jsldp("J_BRW","browser");
 		jsldp("J_U2K","up2k");
 	</script>
+{%- if is_admin %}
+	<!-- Admin Console FAB -->
+	<style>
+		.cp-fab-wrap { position: fixed; right: 20px; bottom: 20px; z-index: 999999; display: flex; flex-direction: column; gap: 12px; align-items: flex-end; }
+		.cp-fab-console {
+			display: inline-flex; align-items: center; gap: 10px;
+			padding: 14px 18px;
+			border-radius: 999px;
+			background: rgba(20, 20, 20, 0.92);
+			color: #fff !important;
+			text-decoration: none;
+			box-shadow: 0 10px 28px rgba(0,0,0,0.35);
+			font: 600 14px/1.0 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+			letter-spacing: 0.2px;
+			cursor: pointer;
+		}
+		.cp-fab-console:hover { filter: brightness(1.08); transform: translateY(-1px); }
+		.cp-fab-console .cp-ico { font-size: 16px; opacity: 0.95; }
+		.cp-console-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000000; display: none; }
+		.cp-console-panel {
+			position: fixed; left: 24px; right: 24px; bottom: 24px;
+			height: min(60vh, 560px);
+			background: #0d1117;
+			border: 1px solid rgba(66,165,245,0.25);
+			border-radius: 14px;
+			box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+			z-index: 1000001;
+			display: none;
+			overflow: hidden;
+		}
+		.cp-console-head {
+			height: 48px;
+			display: flex; align-items: center; justify-content: space-between;
+			padding: 0 14px;
+			background: rgba(19,47,76,0.9);
+			border-bottom: 1px solid rgba(66,165,245,0.25);
+			color: #e3f2fd;
+			font: 600 13px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+		}
+		.cp-console-actions { display: flex; gap: 10px; align-items: center; }
+		.cp-console-btn {
+			background: rgba(255,255,255,0.08);
+			color: #e3f2fd;
+			border: 1px solid rgba(255,255,255,0.12);
+			border-radius: 10px;
+			padding: 7px 10px;
+			cursor: pointer;
+			font: 600 12px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+		}
+		.cp-console-btn:hover { background: rgba(255,255,255,0.12); }
+		.cp-console-body {
+			height: calc(100% - 48px);
+			overflow: auto;
+			padding: 12px 14px;
+			color: #b8d4e8;
+			font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+			white-space: pre-wrap;
+		}
+	</style>
+	<div class="cp-fab-wrap">
+		<a href="#" class="cp-fab-console" id="cp-console-open"><span class="cp-ico">🖥️</span><span>Console</span></a>
+	</div>
+	<div class="cp-console-overlay" id="cp-console-ov"></div>
+	<div class="cp-console-panel" id="cp-console-panel">
+		<div class="cp-console-head">
+			<div>Application Console</div>
+			<div class="cp-console-actions">
+				<button class="cp-console-btn" id="cp-console-clear">Clear</button>
+				<button class="cp-console-btn" id="cp-console-close">Close</button>
+			</div>
+		</div>
+		<div class="cp-console-body" id="cp-console-body"></div>
+	</div>
+	<script>
+	(function(){
+		var openBtn = document.getElementById('cp-console-open');
+		var ov = document.getElementById('cp-console-ov');
+		var panel = document.getElementById('cp-console-panel');
+		var body = document.getElementById('cp-console-body');
+		var btnClose = document.getElementById('cp-console-close');
+		var btnClear = document.getElementById('cp-console-clear');
+		var pollTimer = 0;
+		var lastText = '';
+		function setOpen(open){
+			ov.style.display = open ? 'block' : 'none';
+			panel.style.display = open ? 'block' : 'none';
+			if (open) startPolling(); else stopPolling();
+		}
+		function stopPolling(){
+			if (pollTimer){ clearInterval(pollTimer); pollTimer = 0; }
+		}
+		async function fetchLogs(){
+			try {
+				var res = await fetch(SR + '/?cloudparty_api=logs&limit=800', { cache: 'no-store' });
+				if (!res.ok) return;
+				var js = await res.json();
+				var lines = (js && js.lines) ? js.lines : [];
+				var text = lines.join('\n');
+				if (text === lastText) return;
+				lastText = text;
+				body.textContent = text;
+				body.scrollTop = body.scrollHeight;
+			} catch(e) {}
+		}
+		function startPolling(){
+			fetchLogs();
+			stopPolling();
+			pollTimer = setInterval(fetchLogs, 1000);
+		}
+		openBtn.addEventListener('click', function(e){ e.preventDefault(); setOpen(true); });
+		ov.addEventListener('click', function(){ setOpen(false); });
+		btnClose.addEventListener('click', function(){ setOpen(false); });
+		btnClear.addEventListener('click', function(){ body.textContent=''; lastText=''; });
+	})();
+	</script>
+{%- endif %}
 </body>
 </html>
 

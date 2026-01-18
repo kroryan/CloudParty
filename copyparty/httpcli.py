@@ -1382,6 +1382,31 @@ class HttpCli(object):
             self.tx_404()
             return False
 
+        # CloudParty: Handle admin panel and API routes
+        if "cloudparty_admin" in self.uparam:
+            return self.tx_cloudparty_admin()
+        
+        if "cloudparty_api" in self.uparam:
+            return self.tx_cloudparty_api()
+        
+        if "cloudparty_login" in self.uparam:
+            return self.tx_cloudparty_login_page()
+
+        # CloudParty: Force authentication - redirect anonymous users to login
+        # Skip redirect for: login page, static resources, and certain paths
+        is_cloudparty_route = any(k in self.uparam for k in ("cloudparty_login", "cloudparty_admin", "cloudparty_api"))
+        is_auth_route = "pw" in self.uparam or self.vpath.startswith(".cpr")
+        
+        if self.uname == "*" and not is_cloudparty_route and not is_auth_route:
+            # User not authenticated, redirect to CloudParty login
+            # But don't redirect if already going to login or handling auth
+            redirect_url = self.req if self.req not in ("/", "/?") else ""
+            login_url = "/?cloudparty_login"
+            if redirect_url and "cloudparty" not in redirect_url:
+                login_url += "&redirect=" + quotep(redirect_url)
+            self.reply(b"", status=302, headers={"Location": login_url})
+            return True
+
         if "cf_challenge" in self.uparam:
             self.reply(self.j2s("cf").encode("utf-8", "replace"))
             return True
@@ -2225,6 +2250,10 @@ class HttpCli(object):
         self.log("POST %s @%s" % (self.req, self.uname))
         if "%" in self.req:
             self.log(" `-- %r" % (self.vpath,))
+
+        # CloudParty: Handle admin API POST requests
+        if "cloudparty_api" in self.uparam:
+            return self.handle_cloudparty_post()
 
         if self.headers.get("expect", "").lower() == "100-continue":
             try:
@@ -6883,6 +6912,7 @@ class HttpCli(object):
             "title": html_escape("%s %s" % (self.args.bname, self.vpath), crlf=True),
             "srv_info": srv_infot,
             "dtheme": self.args.theme,
+            "is_admin": self.uname == "admin",
         }
 
         if self.args.js_browser:
@@ -7470,6 +7500,812 @@ class HttpCli(object):
                 zs = self.html_head + "\n%s\n" % ("\n".join(oghs),)
                 self.html_head = zs.replace("\n\n", "\n")
 
+        # CloudParty: Admin-only controls (Admin + Console)
+        if self.uname == "admin":
+            admin_button_html = """
+<style>
+.cp-fab-wrap { position: fixed; right: 20px; bottom: 20px; z-index: 999999; display: flex; flex-direction: column; gap: 12px; align-items: flex-end; }
+.cp-fab-admin {
+    width: 54px; height: 54px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #42a5f5 0%, #1976d2 100%);
+    color: #fff !important; text-decoration: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    font-size: 22px;
+}
+.cp-fab-admin:hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+.cp-fab-console {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 18px;
+    border-radius: 999px;
+    background: rgba(20, 20, 20, 0.92);
+    color: #fff !important;
+    text-decoration: none;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.35);
+    font: 600 14px/1.0 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    letter-spacing: 0.2px;
+}
+.cp-fab-console:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.cp-fab-console .cp-ico { font-size: 16px; opacity: 0.95; }
+
+.cp-console-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000000; display: none; }
+.cp-console-panel {
+    position: fixed; left: 24px; right: 24px; bottom: 24px;
+    height: min(60vh, 560px);
+    background: #0d1117;
+    border: 1px solid rgba(66,165,245,0.25);
+    border-radius: 14px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    z-index: 1000001;
+    display: none;
+    overflow: hidden;
+}
+.cp-console-head {
+    height: 48px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 14px;
+    background: rgba(19,47,76,0.9);
+    border-bottom: 1px solid rgba(66,165,245,0.25);
+    color: #e3f2fd;
+    font: 600 13px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+}
+.cp-console-actions { display: flex; gap: 10px; align-items: center; }
+.cp-console-btn {
+    background: rgba(255,255,255,0.08);
+    color: #e3f2fd;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    padding: 7px 10px;
+    cursor: pointer;
+    font: 600 12px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+}
+.cp-console-btn:hover { background: rgba(255,255,255,0.12); }
+.cp-console-body {
+    height: calc(100% - 48px);
+    overflow: auto;
+    padding: 12px 14px;
+    color: #b8d4e8;
+    font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    white-space: pre-wrap;
+}
+.cp-console-line { color: #b8d4e8; }
+</style>
+
+<script>
+(function() {
+    function qs(sel) { return document.querySelector(sel); }
+
+    function ensureUi() {
+        if (qs('.cp-fab-wrap')) return;
+
+        var wrap = document.createElement('div');
+        wrap.className = 'cp-fab-wrap';
+
+        var consoleBtn = document.createElement('a');
+        consoleBtn.href = '#';
+        consoleBtn.className = 'cp-fab-console';
+        consoleBtn.innerHTML = '<span class="cp-ico">🖥️</span><span>Console</span>';
+
+        var adminBtn = document.createElement('a');
+        adminBtn.href = '/?cloudparty_admin';
+        adminBtn.className = 'cp-fab-admin';
+        adminBtn.title = 'CloudParty Admin Panel';
+        adminBtn.textContent = '⚙️';
+
+        wrap.appendChild(consoleBtn);
+        wrap.appendChild(adminBtn);
+        document.body.appendChild(wrap);
+
+        var ov = document.createElement('div');
+        ov.className = 'cp-console-overlay';
+        var panel = document.createElement('div');
+        panel.className = 'cp-console-panel';
+        panel.innerHTML =
+            '<div class="cp-console-head">' +
+                '<div>Application Console</div>' +
+                '<div class="cp-console-actions">' +
+                    '<button class="cp-console-btn" data-act="clear">Clear</button>' +
+                    '<button class="cp-console-btn" data-act="close">Close</button>' +
+                '</div>' +
+            '</div>' +
+            '<div class="cp-console-body" id="cp-console-body"></div>';
+
+        document.body.appendChild(ov);
+        document.body.appendChild(panel);
+
+        function setOpen(open) {
+            ov.style.display = open ? 'block' : 'none';
+            panel.style.display = open ? 'block' : 'none';
+            if (open) startPolling(); else stopPolling();
+        }
+
+        var pollTimer = 0;
+        function stopPolling() {
+            if (pollTimer) { clearInterval(pollTimer); pollTimer = 0; }
+        }
+
+        var lastText = '';
+        async function fetchLogs() {
+            try {
+                var res = await fetch('/?cloudparty_api=logs&limit=800', { cache: 'no-store' });
+                if (!res.ok) return;
+                var js = await res.json();
+                var lines = (js && js.lines) ? js.lines : [];
+                var text = lines.join('\n');
+                if (text === lastText) return;
+                lastText = text;
+                var body = document.getElementById('cp-console-body');
+                if (!body) return;
+                body.textContent = text;
+                body.scrollTop = body.scrollHeight;
+            } catch (e) {
+                // ignore
+            }
+        }
+
+        function startPolling() {
+            fetchLogs();
+            stopPolling();
+            pollTimer = setInterval(fetchLogs, 1000);
+        }
+
+        consoleBtn.addEventListener('click', function(ev) {
+            ev.preventDefault();
+            setOpen(true);
+        });
+        ov.addEventListener('click', function() { setOpen(false); });
+        panel.addEventListener('click', function(ev) {
+            var t = ev.target;
+            if (!t || !t.getAttribute) return;
+            var act = t.getAttribute('data-act');
+            if (act === 'close') setOpen(false);
+            if (act === 'clear') {
+                var body = document.getElementById('cp-console-body');
+                if (body) body.textContent = '';
+                lastText = '';
+            }
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', ensureUi);
+    } else {
+        ensureUi();
+    }
+})();
+</script>
+"""
+            self.html_head += admin_button_html
+
         html = self.j2s(tpl, **j2a)
         self.reply(html.encode("utf-8", "replace"))
         return True
+
+    # =========================================================================
+    # CloudParty Admin Panel Functions
+    # =========================================================================
+    
+    def tx_cloudparty_login_page(self) -> bool:
+        """Display the CloudParty login page."""
+        error_msg = self.uparam.get("error", "")
+        redirect_url = self.uparam.get("redirect", "/")
+        
+        html = self.j2s(
+            "cloudparty_login",
+            r=self.args.R,
+            error_msg=error_msg,
+            redirect_url=redirect_url,
+        )
+        self.reply(html.encode("utf-8", "replace"))
+        return True
+
+    def tx_cloudparty_admin(self) -> bool:
+        """Handle CloudParty admin panel requests."""
+        # Check if user is admin
+        if self.uname == "*":
+            # Not logged in - redirect to login
+            self.redirect("", "?cloudparty_login&redirect=" + quotep(self.req))
+            return True
+        
+        if self.uname != "admin" and self.uname not in self.avol:
+            # Not an admin
+            self.loud_reply("Access denied. Admin privileges required.", status=403)
+            return False
+        
+        section = self.uparam.get("cloudparty_admin", "users")
+        message = self.uparam.get("msg", "")
+        message_type = self.uparam.get("msg_type", "success")
+        
+        # Load current config
+        config = self._cloudparty_load_config()
+        users = self._cloudparty_get_users(config)
+        volumes = self._cloudparty_get_volumes(config)
+        
+        html = self.j2s(
+            "cloudparty_admin",
+            r=self.args.R,
+            uname=self.uname,
+            section=section,
+            message=message,
+            message_type=message_type,
+            users=users,
+            volumes=volumes,
+            config=config,
+        )
+        self.reply(html.encode("utf-8", "replace"))
+        return True
+
+    def tx_cloudparty_api(self) -> bool:
+        """Handle CloudParty API requests."""
+        # Check if user is admin
+        if self.uname == "*" or (self.uname != "admin" and self.uname not in self.avol):
+            self.reply(json.dumps({"error": "Access denied"}).encode("utf-8"), status=403)
+            return False
+        
+        api_action = self.uparam.get("cloudparty_api", "")
+        
+        if api_action == "browse_folders":
+            return self._cloudparty_api_browse_folders()
+
+        if api_action == "logs":
+            return self._cloudparty_api_logs()
+        
+        self.reply(json.dumps({"error": "Unknown API action"}).encode("utf-8"), status=400)
+        return False
+
+    def _cloudparty_api_logs(self) -> bool:
+        """API endpoint to fetch recent server log lines (admin only)."""
+        try:
+            limit = int(self.uparam.get("limit", "400"))
+        except Exception:
+            limit = 400
+
+        limit = max(1, min(limit, 5000))
+
+        try:
+            from copyparty.cloudparty_console import get_lines
+
+            lines = get_lines(limit)
+        except Exception as e:
+            lines = [f"[CloudParty] Failed to read logs: {e}"]
+
+        self.reply(
+            json.dumps({"lines": lines}).encode("utf-8"),
+            mime="application/json; charset=utf-8",
+        )
+        return True
+
+    def _cloudparty_api_browse_folders(self) -> bool:
+        """API endpoint to browse server folders."""
+        path = self.uparam.get("path", "")
+        
+        result = {"folders": [], "parent": ""}
+        
+        try:
+            if not path:
+                # List drives on Windows, root on Unix
+                if ANYWIN:
+                    import string
+                    for letter in string.ascii_uppercase:
+                        drive = f"{letter}:/"
+                        if bos.path.exists(drive):
+                            result["folders"].append({"name": drive, "path": drive})
+                else:
+                    path = "/"
+                    result["parent"] = ""
+            
+            if path:
+                # Normalize path
+                path = path.replace("\\", "/")
+                if not path.endswith("/"):
+                    path += "/"
+                
+                # Get parent
+                parent_path = "/".join(path.rstrip("/").split("/")[:-1])
+                if parent_path and not parent_path.endswith("/"):
+                    parent_path += "/"
+                result["parent"] = parent_path
+                
+                # List directories
+                try:
+                    for name in sorted(bos.listdir(path)):
+                        full_path = path + name
+                        try:
+                            if bos.path.isdir(full_path):
+                                result["folders"].append({
+                                    "name": name,
+                                    "path": full_path
+                                })
+                        except:
+                            pass
+                except PermissionError:
+                    result["error"] = "Permission denied"
+                except FileNotFoundError:
+                    result["error"] = "Path not found"
+        
+        except Exception as ex:
+            result["error"] = str(ex)
+        
+        self.reply(json.dumps(result).encode("utf-8"), mime="application/json")
+        return True
+
+    def _cloudparty_load_config(self) -> dict:
+        """Load CloudParty configuration from file."""
+        import pathlib
+        
+        # Find config file
+        if getattr(sys, 'frozen', False):
+            app_dir = pathlib.Path(sys.executable).parent
+        else:
+            app_dir = pathlib.Path(__file__).parent.parent
+        
+        config_file = app_dir / "cloudparty.conf"
+        
+        config = {
+            "port": 3923,
+            "interface": "::",
+            "theme": "cloudparty",
+            "e2dsa": False,
+            "e2ts": False,
+            "zeroconf": False,
+            "qr": False,
+            "accounts": {},
+            "volumes": [],
+        }
+        
+        if not config_file.exists():
+            return config
+        
+        try:
+            with open(config_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            current_section = 'global'
+            current_volume = None
+            
+            for line in content.split('\n'):
+                stripped = line.strip()
+                
+                if not stripped or stripped.startswith('#'):
+                    continue
+                
+                # Handle inline comments
+                if '  #' in stripped:
+                    stripped = stripped.split('  #')[0].strip()
+                
+                # Section header
+                if stripped.startswith('[') and stripped.endswith(']'):
+                    section_name = stripped[1:-1].strip()
+                    if section_name == 'global':
+                        current_section = 'global'
+                    elif section_name == 'accounts':
+                        current_section = 'accounts'
+                    elif section_name.startswith('/'):
+                        current_section = 'volume'
+                        current_volume = {'path': section_name, 'source': '', 'accs': {}}
+                        config['volumes'].append(current_volume)
+                    continue
+                
+                # Check for flags without values
+                if ':' not in stripped:
+                    if current_section == 'global':
+                        for flag in stripped.replace(',', ' ').split():
+                            flag = flag.strip()
+                            if flag == 'e2dsa':
+                                config['e2dsa'] = True
+                            elif flag == 'e2ts':
+                                config['e2ts'] = True
+                            elif flag == 'z':
+                                config['zeroconf'] = True
+                            elif flag == 'qr':
+                                config['qr'] = True
+                    continue
+                
+                # Key-value pair
+                key, value = stripped.split(':', 1)
+                key = key.strip()
+                value = value.strip()
+                
+                if current_section == 'global':
+                    if key == 'p':
+                        try:
+                            config['port'] = int(value.split(',')[0].strip())
+                        except:
+                            pass
+                    elif key == 'i':
+                        config['interface'] = value
+                    elif key == 'theme':
+                        config['theme'] = value
+                elif current_section == 'accounts':
+                    config['accounts'][key] = value
+                elif current_section == 'volume' and current_volume:
+                    # Check if it's a path (Windows drive letter)
+                    if len(key) == 1 and key.isalpha() and value.startswith('/'):
+                        current_volume['source'] = f"{key}:{value}"
+                    elif key in ('r', 'w', 'rw', 'rwm', 'rwmd', 'a'):
+                        current_volume['accs'][key] = value
+        
+        except Exception as ex:
+            print(f"[CloudParty] Error loading config: {ex}")
+        
+        return config
+
+    def _cloudparty_get_users(self, config: dict) -> list:
+        """Get list of users from config."""
+        users = []
+        accounts = config.get('accounts', {})
+        volumes = config.get('volumes', [])
+        
+        for username, password in accounts.items():
+            user = {
+                'name': username,
+                'is_admin': username == 'admin',
+                'volumes': []
+            }
+            
+            # Find which volumes this user has access to
+            for vol in volumes:
+                for perm, users_str in vol.get('accs', {}).items():
+                    if username in users_str.split() or '*' in users_str.split():
+                        user['volumes'].append({
+                            'path': vol.get('path', ''),
+                            'perm': 'write' if 'w' in perm else 'read'
+                        })
+                        break
+            
+            users.append(user)
+        
+        return users
+
+    def _cloudparty_get_volumes(self, config: dict) -> list:
+        """Get list of volumes from config."""
+        return config.get('volumes', [])
+
+    def handle_cloudparty_post(self) -> bool:
+        """Handle POST requests for CloudParty admin API."""
+        # Check admin privileges
+        if self.uname == "*":
+            self.reply(json.dumps({"error": "Not authenticated"}).encode("utf-8"), status=401)
+            return False
+        
+        if self.uname != "admin" and self.uname not in self.avol:
+            self.reply(json.dumps({"error": "Access denied"}).encode("utf-8"), status=403)
+            return False
+        
+        # Read POST body
+        try:
+            remains = int(self.headers.get("content-length", 0))
+        except:
+            self.reply(json.dumps({"error": "Invalid content length"}).encode("utf-8"), status=411)
+            return False
+        
+        if remains > 1024 * 1024:
+            self.reply(json.dumps({"error": "Request too large"}).encode("utf-8"), status=413)
+            return False
+        
+        try:
+            body_bytes = self.sr.recv_ex(remains) if remains > 0 else b"{}"
+            body = json.loads(body_bytes.decode("utf-8", "replace"))
+        except Exception as ex:
+            self.reply(json.dumps({"error": f"Invalid JSON: {ex}"}).encode("utf-8"), status=400)
+            return False
+        
+        action = self.uparam.get("cloudparty_api", "")
+        
+        try:
+            if action == "add_user":
+                return self._cloudparty_api_add_user(body)
+            elif action == "edit_user":
+                return self._cloudparty_api_edit_user(body)
+            elif action == "delete_user":
+                return self._cloudparty_api_delete_user(body)
+            elif action == "add_volume":
+                return self._cloudparty_api_add_volume(body)
+            elif action == "edit_volume":
+                return self._cloudparty_api_edit_volume(body)
+            elif action == "delete_volume":
+                return self._cloudparty_api_delete_volume(body)
+            elif action == "save_settings":
+                return self._cloudparty_api_save_settings(body)
+            else:
+                self.reply(json.dumps({"error": "Unknown action"}).encode("utf-8"), status=400)
+                return False
+        except Exception as ex:
+            self.reply(json.dumps({"error": str(ex)}).encode("utf-8"), status=500)
+            return False
+
+    def _cloudparty_get_config_path(self):
+        """Get the config file path."""
+        import pathlib
+        if getattr(sys, 'frozen', False):
+            return pathlib.Path(sys.executable).parent / "cloudparty.conf"
+        else:
+            return pathlib.Path(__file__).parent.parent / "cloudparty.conf"
+
+    def _cloudparty_save_config(self, config: dict) -> None:
+        """Save CloudParty configuration to file."""
+        config_path = self._cloudparty_get_config_path()
+        
+        lines = []
+        lines.append("# CloudParty Configuration")
+        lines.append("# Auto-generated by CloudParty Admin Panel")
+        lines.append("")
+        lines.append("[global]")
+        lines.append(f"p: {config.get('port', 3923)}")
+        lines.append(f"i: {config.get('interface', '::')}")
+        
+        # Flags
+        flags = []
+        if config.get('e2dsa'):
+            flags.append('e2dsa')
+        if config.get('e2ts'):
+            flags.append('e2ts')
+        if config.get('zeroconf'):
+            flags.append('z')
+        if config.get('qr'):
+            flags.append('qr')
+        if flags:
+            lines.append(", ".join(flags))
+        
+        if config.get('theme'):
+            lines.append(f"theme: {config['theme']}")
+        
+        lines.append("")
+        lines.append("[accounts]")
+        for username, password in config.get('accounts', {}).items():
+            lines.append(f"{username}: {password}")
+        
+        # Volumes
+        for vol in config.get('volumes', []):
+            lines.append("")
+            lines.append(f"[{vol.get('path', '/files')}]")
+            
+            source = vol.get('source', '')
+            if source:
+                # Handle Windows paths
+                if len(source) >= 2 and source[1] == ':':
+                    drive = source[0]
+                    rest = source[2:]
+                    lines.append(f"{drive}: {rest}")
+                else:
+                    lines.append(source)
+            
+            # Access permissions
+            for perm, users in vol.get('accs', {}).items():
+                if users:
+                    lines.append(f"{perm}: {users}")
+        
+        lines.append("")
+        
+        with open(config_path, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(lines))
+
+    def _cloudparty_api_add_user(self, body: dict) -> bool:
+        """Add a new user."""
+        username = body.get('username', '').strip()
+        password = body.get('password', '').strip()
+        is_admin = body.get('is_admin', False)
+        
+        if not username or not password:
+            self.reply(json.dumps({"error": "Username and password required"}).encode("utf-8"), status=400)
+            return False
+        
+        # Invalid characters check
+        if ':' in username or ' ' in username:
+            self.reply(json.dumps({"error": "Invalid username format"}).encode("utf-8"), status=400)
+            return False
+        
+        config = self._cloudparty_load_config()
+        
+        if username in config.get('accounts', {}):
+            self.reply(json.dumps({"error": "User already exists"}).encode("utf-8"), status=400)
+            return False
+        
+        config['accounts'][username] = password
+        
+        # If admin, add to all volumes with full access
+        if is_admin:
+            for vol in config.get('volumes', []):
+                if 'a' in vol.get('accs', {}):
+                    current = vol['accs'].get('a', '')
+                    if username not in current:
+                        vol['accs']['a'] = f"{current} {username}".strip()
+                else:
+                    vol['accs']['a'] = username
+        
+        self._cloudparty_save_config(config)
+        
+        self.reply(json.dumps({"success": True, "message": "User added successfully"}).encode("utf-8"))
+        return True
+
+    def _cloudparty_api_edit_user(self, body: dict) -> bool:
+        """Edit an existing user."""
+        username = body.get('username', '').strip()
+        new_password = body.get('password', '').strip()
+        
+        if not username:
+            self.reply(json.dumps({"error": "Username required"}).encode("utf-8"), status=400)
+            return False
+        
+        config = self._cloudparty_load_config()
+        
+        if username not in config.get('accounts', {}):
+            self.reply(json.dumps({"error": "User not found"}).encode("utf-8"), status=404)
+            return False
+        
+        if new_password:
+            config['accounts'][username] = new_password
+        
+        self._cloudparty_save_config(config)
+        
+        self.reply(json.dumps({"success": True, "message": "User updated successfully"}).encode("utf-8"))
+        return True
+
+    def _cloudparty_api_delete_user(self, body: dict) -> bool:
+        """Delete a user."""
+        username = body.get('username', '').strip()
+        
+        if not username:
+            self.reply(json.dumps({"error": "Username required"}).encode("utf-8"), status=400)
+            return False
+        
+        if username == "admin":
+            self.reply(json.dumps({"error": "Cannot delete admin user"}).encode("utf-8"), status=400)
+            return False
+        
+        config = self._cloudparty_load_config()
+        
+        if username not in config.get('accounts', {}):
+            self.reply(json.dumps({"error": "User not found"}).encode("utf-8"), status=404)
+            return False
+        
+        del config['accounts'][username]
+        
+        # Also remove from volume access lists
+        for vol in config.get('volumes', []):
+            for perm in list(vol.get('accs', {}).keys()):
+                users = vol['accs'][perm].split()
+                if username in users:
+                    users.remove(username)
+                    vol['accs'][perm] = ' '.join(users)
+        
+        self._cloudparty_save_config(config)
+        
+        self.reply(json.dumps({"success": True, "message": "User deleted successfully"}).encode("utf-8"))
+        return True
+
+    def _cloudparty_api_add_volume(self, body: dict) -> bool:
+        """Add a new volume."""
+        mount_path = body.get('mount_path', '').strip()
+        source_path = body.get('source_path', '').strip()
+        permissions = body.get('permissions', {})
+        
+        if not mount_path or not source_path:
+            self.reply(json.dumps({"error": "Mount path and source path required"}).encode("utf-8"), status=400)
+            return False
+        
+        # Ensure mount_path starts with /
+        if not mount_path.startswith('/'):
+            mount_path = '/' + mount_path
+        
+        # Validate source path exists
+        if not bos.path.exists(source_path):
+            self.reply(json.dumps({"error": "Source path does not exist"}).encode("utf-8"), status=400)
+            return False
+        
+        config = self._cloudparty_load_config()
+        
+        # Check if mount path already exists
+        for vol in config.get('volumes', []):
+            if vol.get('path') == mount_path:
+                self.reply(json.dumps({"error": "Mount path already exists"}).encode("utf-8"), status=400)
+                return False
+        
+        new_vol = {
+            'path': mount_path,
+            'source': source_path,
+            'accs': permissions if permissions else {'rw': 'admin'}
+        }
+        
+        config['volumes'].append(new_vol)
+        
+        self._cloudparty_save_config(config)
+        
+        self.reply(json.dumps({"success": True, "message": "Volume added successfully"}).encode("utf-8"))
+        return True
+
+    def _cloudparty_api_edit_volume(self, body: dict) -> bool:
+        """Edit an existing volume."""
+        mount_path = body.get('mount_path', '').strip()
+        source_path = body.get('source_path', '').strip()
+        permissions = body.get('permissions', {})
+        
+        if not mount_path:
+            self.reply(json.dumps({"error": "Mount path required"}).encode("utf-8"), status=400)
+            return False
+        
+        config = self._cloudparty_load_config()
+        
+        # Find volume
+        vol_found = None
+        for vol in config.get('volumes', []):
+            if vol.get('path') == mount_path:
+                vol_found = vol
+                break
+        
+        if not vol_found:
+            self.reply(json.dumps({"error": "Volume not found"}).encode("utf-8"), status=404)
+            return False
+        
+        if source_path:
+            if not bos.path.exists(source_path):
+                self.reply(json.dumps({"error": "Source path does not exist"}).encode("utf-8"), status=400)
+                return False
+            vol_found['source'] = source_path
+        
+        if permissions:
+            vol_found['accs'] = permissions
+        
+        self._cloudparty_save_config(config)
+        
+        self.reply(json.dumps({"success": True, "message": "Volume updated successfully"}).encode("utf-8"))
+        return True
+
+    def _cloudparty_api_delete_volume(self, body: dict) -> bool:
+        """Delete a volume."""
+        mount_path = body.get('mount_path', '').strip()
+        
+        if not mount_path:
+            self.reply(json.dumps({"error": "Mount path required"}).encode("utf-8"), status=400)
+            return False
+        
+        config = self._cloudparty_load_config()
+        
+        # Find and remove volume
+        original_len = len(config.get('volumes', []))
+        config['volumes'] = [v for v in config.get('volumes', []) if v.get('path') != mount_path]
+        
+        if len(config['volumes']) == original_len:
+            self.reply(json.dumps({"error": "Volume not found"}).encode("utf-8"), status=404)
+            return False
+        
+        self._cloudparty_save_config(config)
+        
+        self.reply(json.dumps({"success": True, "message": "Volume deleted successfully"}).encode("utf-8"))
+        return True
+
+    def _cloudparty_api_save_settings(self, body: dict) -> bool:
+        """Save general settings."""
+        config = self._cloudparty_load_config()
+        
+        # Update settings from body
+        if 'port' in body:
+            try:
+                config['port'] = int(body['port'])
+            except:
+                pass
+        
+        if 'interface' in body:
+            config['interface'] = str(body['interface'])
+        
+        if 'theme' in body:
+            config['theme'] = str(body['theme'])
+        
+        if 'e2dsa' in body:
+            config['e2dsa'] = bool(body['e2dsa'])
+        
+        if 'e2ts' in body:
+            config['e2ts'] = bool(body['e2ts'])
+        
+        if 'zeroconf' in body:
+            config['zeroconf'] = bool(body['zeroconf'])
+        
+        if 'qr' in body:
+            config['qr'] = bool(body['qr'])
+        
+        self._cloudparty_save_config(config)
+        
+        self.reply(json.dumps({"success": True, "message": "Settings saved successfully. Restart required for some changes."}).encode("utf-8"))
+        return True
+

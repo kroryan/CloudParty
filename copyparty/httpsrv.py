@@ -177,6 +177,8 @@ class HttpSrv(object):
             "browser",
             "browser2",
             "cf",
+            "cloudparty_admin",
+            "cloudparty_login",
             "idp",
             "md",
             "mde",

@@ -15,6 +15,8 @@ import time
 import subprocess
 from pathlib import Path
 
+from copyparty.cloudparty_console import install_stdio_capture
+
 # Thread-safe flag for running state
 _running_lock = threading.Lock()
 _running = False
@@ -501,6 +503,9 @@ def build_args_from_config(config):
     elif theme.isdigit():
         args.extend(['--theme', theme])
     
+    # Always require username+password for CloudParty
+    args.append('--usernames')
+    
     # Extra global flags
     global_cfg = parsed.get('global', {})
     # Map config flags to copyparty argument names
@@ -594,16 +599,6 @@ class CloudPartyTray:
             print(f"[CloudParty] Error creating icon: {e}")
             return None
     
-    def on_show_console(self, icon=None, item=None):
-        """Toggle console visibility."""
-        if self.console_visible:
-            hide_console()
-            self.console_visible = False
-        else:
-            show_console()
-            self.console_visible = True
-        self.update_menu()
-    
     def on_open_browser(self, icon=None, item=None):
         """Open CloudParty in the default browser."""
         import webbrowser
@@ -623,8 +618,6 @@ class CloudPartyTray:
         """Exit the application."""
         print("[CloudParty] Shutting down...")
         set_running(False)
-        # Show console before exit to display any final messages
-        show_console()
         if self.icon:
             try:
                 self.icon.stop()
@@ -650,12 +643,7 @@ class CloudPartyTray:
         try:
             from pystray import MenuItem, Menu
             
-            # Use a callable for dynamic text
-            def get_console_text(item):
-                return "Hide Console" if self.console_visible else "Show Console"
-            
             return Menu(
-                MenuItem(get_console_text, self.on_show_console),
                 MenuItem("Open in Browser", self.on_open_browser),
                 MenuItem("Reload Config", self.on_reload_config),
                 MenuItem("---", None, enabled=False),  # Separator alternative
@@ -691,18 +679,13 @@ class CloudPartyTray:
             print(f"[CloudParty] Error running copyparty: {e}")
             import traceback
             traceback.print_exc()
-            # Show console so user can see the error
-            show_console()
-            self.console_visible = True
     
     def run_tray(self):
         """Run the system tray icon."""
         if not HAVE_PYSTRAY or not HAVE_PIL:
             print("[CloudParty] pystray or PIL not available")
             print("[CloudParty] Running without tray icon...")
-            print("[CloudParty] Press Ctrl+C to exit")
-            show_console()  # Make sure console is visible if no tray
-            self.console_visible = True
+            print("[CloudParty] No tray available; running headless")
             try:
                 while is_running():
                     time.sleep(1)
@@ -730,8 +713,6 @@ class CloudPartyTray:
             print(f"[CloudParty] Tray error: {e}")
             import traceback
             traceback.print_exc()
-            show_console()  # Show console if tray fails
-            self.console_visible = True
             try:
                 while is_running():
                     time.sleep(1)
@@ -742,6 +723,10 @@ class CloudPartyTray:
         """Main entry point."""
         # Set up console handler to intercept close button
         setup_console_handler()
+
+        # Capture logs for the web "Console" viewer (admin only)
+        # Forward is False so nothing tries to write to a hidden console.
+        install_stdio_capture(forward=False)
         
         print("=" * 60)
         print("  CloudParty - File Sharing Server")
@@ -766,7 +751,7 @@ class CloudPartyTray:
             print("[CloudParty] and modify it according to your needs.")
             print()
             # Check if we have a TTY before waiting for input
-            if sys.stdin.isatty():
+            if sys.stdin is not None and hasattr(sys.stdin, 'isatty') and sys.stdin.isatty():
                 print("Press Enter to exit...")
                 try:
                     input()
@@ -786,25 +771,23 @@ class CloudPartyTray:
         
         set_running(True)
         
-        # Hide console if configured (and tray is available)
-        if self.config.get('start_hidden', True) and HAVE_PYSTRAY and HAVE_PIL:
-            print("[CloudParty] Hiding console in 2 seconds (right-click tray icon to show)")
-            print()
-            time.sleep(2)
-            hide_console()
-            self.console_visible = False
-        else:
-            print()
+        # Always hide console - logs accessible via web admin panel
+        print("[CloudParty] Starting in background mode")
+        print("[CloudParty] Logs accessible via web admin panel")
+        print()
+        time.sleep(2)
+        hide_console()
+        self.console_visible = False
         
-        # Start copyparty in a separate thread
-        self.copyparty_thread = threading.Thread(target=self.run_copyparty, daemon=True)
-        self.copyparty_thread.start()
+        # Start tray icon in a separate thread (copyparty must run in main thread for signals)
+        self.tray_thread = threading.Thread(target=self.run_tray, daemon=True)
+        self.tray_thread.start()
         
-        # Give copyparty a moment to start
-        time.sleep(1)
+        # Give tray a moment to start
+        time.sleep(0.5)
         
-        # Run tray icon (blocks until exit)
-        self.run_tray()
+        # Run copyparty in main thread (blocks until exit)
+        self.run_copyparty()
 
 
 def main():

@@ -62,6 +62,9 @@ web/browser.html
 web/browser.js
 web/browser2.html
 web/cf.html
+web/cloudparty.css
+web/cloudparty_admin.html
+web/cloudparty_login.html
 web/copyparty.gif
 web/deps/busy.mp3
 web/deps/easymde.css
