@@ -34,6 +34,7 @@ WINDOWS: Any = (
 
 VT100 = "--ansi" in sys.argv or (
     os.environ.get("NO_COLOR", "").lower() in ("", "0", "false")
+    and sys.stdout is not None
     and sys.stdout.isatty()
     and "--no-ansi" not in sys.argv
     and (not WINDOWS or WINDOWS >= [10, 0, 14393])

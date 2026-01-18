@@ -6,15 +6,25 @@ A system tray wrapper for copyparty that allows running without visible console
 and supports configuration file-based setup.
 """
 
-import ctypes
-import json
+import io
 import os
 import sys
+
+# CRITICAL: Fix stdout/stderr BEFORE any other imports
+# When running as windowless exe, sys.stdout and sys.stderr are None
+if sys.stdout is None:
+    sys.stdout = io.StringIO()
+if sys.stderr is None:
+    sys.stderr = io.StringIO()
+
+import ctypes
+import json
 import threading
 import time
 import subprocess
 from pathlib import Path
 
+# Now safe to import copyparty (which checks sys.stdout.isatty())
 from copyparty.cloudparty_console import install_stdio_capture
 
 # Thread-safe flag for running state

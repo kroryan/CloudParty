@@ -5,8 +5,15 @@ a = Analysis(
     ['cloudparty_launcher.py'],
     pathex=[],
     binaries=[],
-    datas=[('copyparty', 'copyparty'), ('cloudparty.conf', '.'), ('cloudparty.example.conf', '.')],
-    hiddenimports=[],
+    datas=[
+        ('copyparty', 'copyparty'),
+        ('cloudparty.example.conf', '.'),
+        ('cloudparty.ico', '.'),
+    ],
+    hiddenimports=[
+        'pystray._win32',
+        'PIL._tkinter_finder',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

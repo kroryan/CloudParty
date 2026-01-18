@@ -1221,8 +1221,11 @@ class ProgressPrinter(threading.Thread):
                 continue
 
             uprint(fmt.format(msg))
-            if PY2:
-                sys.stdout.flush()
+            if PY2 and sys.stdout:
+                try:
+                    sys.stdout.flush()
+                except Exception:
+                    pass
 
         if no_stdout:
             return
@@ -1232,7 +1235,11 @@ class ProgressPrinter(threading.Thread):
         elif msg:
             print("------------------------")
 
-        sys.stdout.flush()  # necessary on win10 even w/ stderr btw
+        if sys.stdout:
+            try:
+                sys.stdout.flush()  # necessary on win10 even w/ stderr btw
+            except Exception:
+                pass
 
 
 class MTHash(object):
