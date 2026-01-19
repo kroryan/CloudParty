@@ -65,7 +65,9 @@ web/browser2.html
 web/cf.html
 web/cloudparty.css
 web/cloudparty_admin.html
+web/cloudparty_change_password.html
 web/cloudparty_login.html
+web/cloudparty_setup.html
 web/copyparty.gif
 web/deps/busy.mp3
 web/deps/easymde.css

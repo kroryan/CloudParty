@@ -1382,6 +1382,24 @@ class HttpCli(object):
             self.tx_404()
             return False
 
+        # CloudParty: Check if first-time setup is needed (legacy - redirect to login)
+        if "cloudparty_setup" in self.uparam:
+            self.reply(b"", status=302, headers={"Location": "/?cloudparty_login&first_login=1"})
+            return True
+
+        # CloudParty: Auto-redirect to login if first_login flag is set
+        if self.vpath in ("", "/") and not self.uparam:
+            try:
+                config = self._cloudparty_load_config()
+                # Check if first_login flag is set in config
+                first_login = config.get('first_login', False)
+                if first_login:
+                    # Redirect to login page with first_login indicator
+                    self.reply(b"", status=302, headers={"Location": "/?cloudparty_login&first_login=1"})
+                    return True
+            except Exception as e:
+                self.log(f"[CloudParty] Error checking first login status: {e}", 1)
+
         # CloudParty: Handle admin panel and API routes
         if "cloudparty_admin" in self.uparam:
             return self.tx_cloudparty_admin()
@@ -1391,6 +1409,9 @@ class HttpCli(object):
         
         if "cloudparty_login" in self.uparam:
             return self.tx_cloudparty_login_page()
+
+        if "cloudparty_change_password" in self.uparam:
+            return self.tx_cloudparty_change_password()
 
         # CloudParty: Force authentication - redirect anonymous users to login
         # Skip redirect for: login page, static resources, and certain paths
@@ -3332,7 +3353,17 @@ class HttpCli(object):
             dst += "&" if "?" in dst else "?"
             dst += "_=1#" + html_escape(uhash, True, True)
 
-        _, msg = self.get_pwd_cookie(pwd)
+        ok, msg = self.get_pwd_cookie(pwd)
+
+        # CloudParty: Check if this is first login and redirect to change password
+        if ok and un == "admin":
+            try:
+                config = self._cloudparty_load_config()
+                if config.get('first_login', False):
+                    dst = self.args.SRS + "?cloudparty_change_password"
+            except:
+                pass  # If config loading fails, continue with normal flow
+
         h2 = '<a href="' + dst + '">continue</a>'
         html = self.j2s("msg", h1=msg, h2=h2, redir=dst)
         self.reply(html.encode("utf-8"))
@@ -7690,7 +7721,7 @@ class HttpCli(object):
         """Display the CloudParty login page."""
         error_msg = self.uparam.get("error", "")
         redirect_url = self.uparam.get("redirect", "/")
-        
+
         html = self.j2s(
             "cloudparty_login",
             r=self.args.R,
@@ -7699,6 +7730,110 @@ class HttpCli(object):
         )
         self.reply(html.encode("utf-8", "replace"))
         return True
+
+    def tx_cloudparty_change_password(self) -> bool:
+        """Display the CloudParty change password page (for first login)."""
+        # Serve the change password page
+        res_path = "web/cloudparty_change_password.html"
+        if res_path in RES:
+            return self.tx_res(res_path)
+
+        # Fallback: try to load from file
+        import pathlib
+        if getattr(sys, 'frozen', False):
+            change_pwd_file = pathlib.Path(sys.executable).parent / "copyparty" / "web" / "cloudparty_change_password.html"
+        else:
+            change_pwd_file = pathlib.Path(__file__).parent / "web" / "cloudparty_change_password.html"
+
+        if change_pwd_file.exists():
+            with open(change_pwd_file, 'r', encoding='utf-8') as f:
+                html = f.read()
+            self.reply(html.encode("utf-8", "replace"))
+            return True
+
+        self.reply(b"Change password page not found", status=404)
+        return True
+
+    def tx_cloudparty_setup(self) -> bool:
+        """Handle CloudParty first-time setup page."""
+        try:
+            # Check if setup is actually needed
+            config = self._cloudparty_load_config()
+            from .cloudparty_auth import needs_first_time_setup
+
+            if not needs_first_time_setup(config):
+                # Setup already complete, redirect to main page
+                self.reply(b"", status=302, headers={"Location": "/"})
+                return True
+
+            # Serve the setup page
+            res_path = "web/cloudparty_setup.html"
+            if res_path in RES:
+                return self.tx_res(res_path)
+
+            # Fallback: serve from file system
+            import pathlib
+            if getattr(sys, 'frozen', False):
+                setup_file = pathlib.Path(sys.executable).parent / "copyparty" / "web" / "cloudparty_setup.html"
+            else:
+                setup_file = pathlib.Path(__file__).parent / "web" / "cloudparty_setup.html"
+
+            if setup_file.exists():
+                with open(setup_file, 'r', encoding='utf-8') as f:
+                    html = f.read()
+                self.reply(html.encode('utf-8'), headers=[("Content-Type", "text/html; charset=utf-8")])
+                return True
+            else:
+                # Generate a simple fallback setup page
+                html = self._cloudparty_generate_setup_html()
+                self.reply(html.encode('utf-8'), headers=[("Content-Type", "text/html; charset=utf-8")])
+                return True
+
+        except Exception as e:
+            self.log(f"[CloudParty] Error serving setup page: {e}", 1)
+            import traceback
+            traceback.print_exc()
+            self.loud_reply(f"Error loading setup page: {e}", status=500)
+            return False
+
+    def _cloudparty_generate_setup_html(self) -> str:
+        """Generate a simple fallback setup page if the HTML file is not found."""
+        return '''<!DOCTYPE html>
+<html><head><title>CloudParty Setup</title>
+<style>body{font-family:sans-serif;background:#0a1929;color:#90caf9;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0}
+.box{background:#1e3a5f;padding:40px;border-radius:16px;max-width:400px;width:100%}
+h1{color:#42a5f5;margin-bottom:20px}
+input{width:100%;padding:12px;margin:10px 0;border:2px solid #42a5f5;border-radius:8px;background:#0a1929;color:white;box-sizing:border-box}
+button{width:100%;padding:14px;background:#42a5f5;color:white;border:none;border-radius:8px;cursor:pointer;font-size:16px}
+button:hover{background:#1976d2}
+.error{color:#ff5252;margin:10px 0;display:none}
+</style></head><body>
+<div class="box">
+<h1>CloudParty Setup</h1>
+<p>Create your admin account to get started</p>
+<div class="error" id="error"></div>
+<form id="form">
+<input type="password" id="pass" placeholder="Admin Password (8+ chars)" required minlength="8">
+<input type="password" id="confirm" placeholder="Confirm Password" required>
+<button type="submit">Create Admin Account</button>
+</form>
+</div>
+<script>
+document.getElementById('form').onsubmit=async(e)=>{
+e.preventDefault();
+const p=document.getElementById('pass').value;
+const c=document.getElementById('confirm').value;
+const err=document.getElementById('error');
+if(p!==c){err.textContent='Passwords do not match';err.style.display='block';return}
+if(p.length<8){err.textContent='Password must be at least 8 characters';err.style.display='block';return}
+try{
+const r=await fetch('/?cloudparty_api=initial_setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({admin_password:p})});
+const d=await r.json();
+if(d.success){window.location.href='/'}
+else{err.textContent=d.error||'Setup failed';err.style.display='block'}
+}catch(e){err.textContent='Network error';err.style.display='block'}
+};
+</script></body></html>'''
 
     def tx_cloudparty_admin(self) -> bool:
         """Handle CloudParty admin panel requests."""
@@ -7917,6 +8052,8 @@ class HttpCli(object):
                         config['interface'] = value
                     elif key == 'theme':
                         config['theme'] = value
+                    elif key == 'first_login':
+                        config['first_login'] = value.lower() == 'true'
                 elif current_section == 'accounts':
                     config['accounts'][key] = value
                 elif current_section == 'volume' and current_volume:
@@ -7964,14 +8101,30 @@ class HttpCli(object):
 
     def handle_cloudparty_post(self) -> bool:
         """Handle POST requests for CloudParty admin API."""
-        # Check admin privileges
-        if self.uname == "*":
-            self.reply(json.dumps({"error": "Not authenticated"}).encode("utf-8"), status=401)
-            return False
-        
-        if self.uname != "admin" and self.uname not in self.avol:
-            self.reply(json.dumps({"error": "Access denied"}).encode("utf-8"), status=403)
-            return False
+
+        # Special case: allow initial_setup without authentication
+        action = self.uparam.get("cloudparty_api", "")
+        if action == "initial_setup":
+            # This endpoint is publicly accessible (no auth required)
+            # but only works if no admin account exists
+            pass  # Skip auth check
+        elif action == "check_setup_status":
+            # This endpoint is also publicly accessible
+            pass  # Skip auth check
+        elif action == "change_first_password":
+            # Allow authenticated admin to change password on first login
+            if self.uname != "admin":
+                self.reply(json.dumps({"error": "Admin authentication required"}).encode("utf-8"), status=401)
+                return False
+        else:
+            # Check admin privileges for all other endpoints
+            if self.uname == "*":
+                self.reply(json.dumps({"error": "Not authenticated"}).encode("utf-8"), status=401)
+                return False
+
+            if self.uname != "admin" and self.uname not in self.avol:
+                self.reply(json.dumps({"error": "Access denied"}).encode("utf-8"), status=403)
+                return False
         
         # Read POST body
         try:
@@ -7991,10 +8144,15 @@ class HttpCli(object):
             self.reply(json.dumps({"error": f"Invalid JSON: {ex}"}).encode("utf-8"), status=400)
             return False
         
-        action = self.uparam.get("cloudparty_api", "")
-        
+        # Action was already retrieved above for auth check
+        # action = self.uparam.get("cloudparty_api", "")
+
         try:
-            if action == "add_user":
+            if action == "initial_setup":
+                return self._cloudparty_api_initial_setup(body)
+            elif action == "check_setup_status":
+                return self._cloudparty_api_check_setup_status(body)
+            elif action == "add_user":
                 return self._cloudparty_api_add_user(body)
             elif action == "edit_user":
                 return self._cloudparty_api_edit_user(body)
@@ -8008,6 +8166,8 @@ class HttpCli(object):
                 return self._cloudparty_api_delete_volume(body)
             elif action == "save_settings":
                 return self._cloudparty_api_save_settings(body)
+            elif action == "change_first_password":
+                return self._cloudparty_api_change_first_password(body)
             else:
                 self.reply(json.dumps({"error": "Unknown action"}).encode("utf-8"), status=400)
                 return False
@@ -8022,6 +8182,19 @@ class HttpCli(object):
             return pathlib.Path(sys.executable).parent / "cloudparty.conf"
         else:
             return pathlib.Path(__file__).parent.parent / "cloudparty.conf"
+
+    def _cloudparty_sanitize_config_value(self, value: str) -> str:
+        """
+        SECURITY: Sanitize configuration values to prevent injection attacks.
+        Removes or escapes characters that could break the config file format.
+        """
+        if not isinstance(value, str):
+            value = str(value)
+        # Replace newlines and carriage returns (prevent config injection)
+        value = value.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
+        # Trim and collapse multiple spaces
+        value = ' '.join(value.split())
+        return value
 
     def _cloudparty_save_config(self, config: dict) -> None:
         """Save CloudParty configuration to file."""
@@ -8053,7 +8226,38 @@ class HttpCli(object):
         
         lines.append("")
         lines.append("[accounts]")
+        # SECURITY: Sanitize usernames and passwords + auto-hash plain text passwords
         for username, password in config.get('accounts', {}).items():
+            # Re-validate username format (defense in depth)
+            import re
+            if not re.match(r'^[a-zA-Z0-9_-]+$', username):
+                self.log(f"SECURITY WARNING: Skipping invalid username: {username}", 1)
+                continue
+
+            # Sanitize password (remove injection chars but allow special chars)
+            password = password.replace('\n', '').replace('\r', '').replace('\t', ' ')
+
+            # SECURITY: Auto-hash plain text passwords (but NOT placeholder passwords)
+            # Placeholder passwords are left in plain text so needs_first_time_setup can detect them
+            placeholder_passwords = [
+                'CHANGE_ME_IMMEDIATELY_USE_STRONG_PASSWORD',
+                'CHANGE_THIS_ADMIN_PASSWORD_NOW',
+                'CHANGE_THIS_PASSWORD',
+            ]
+            if password not in placeholder_passwords:
+                try:
+                    # Check if password is already hashed (copyparty format: starts with + and 33 chars)
+                    from .cloudparty_auth import is_password_hashed
+                    if not is_password_hashed(password):
+                        # Use copyparty's hasher for consistency
+                        if self.asrv.ah.on:
+                            password = self.asrv.ah.hash(password)
+                        else:
+                            from .cloudparty_auth import auto_hash_password
+                            password = auto_hash_password(password)
+                except Exception as e:
+                    self.log(f"SECURITY WARNING: Could not hash password for {username}: {e}", 1)
+
             lines.append(f"{username}: {password}")
         
         # Volumes
@@ -8091,9 +8295,23 @@ class HttpCli(object):
             self.reply(json.dumps({"error": "Username and password required"}).encode("utf-8"), status=400)
             return False
         
-        # Invalid characters check
-        if ':' in username or ' ' in username:
-            self.reply(json.dumps({"error": "Invalid username format"}).encode("utf-8"), status=400)
+        # SECURITY: Enhanced username validation to prevent injection attacks
+        # Block characters that could break configuration file format
+        invalid_chars = [':', ' ', '\n', '\r', '\t', '#', '[', ']', '=']
+        if any(char in username for char in invalid_chars):
+            self.reply(json.dumps({"error": "Invalid username format: contains forbidden characters"}).encode("utf-8"), status=400)
+            return False
+
+        # SECURITY: Additional validation - alphanumeric and basic symbols only
+        import re
+        if not re.match(r'^[a-zA-Z0-9_-]+$', username):
+            self.reply(json.dumps({"error": "Invalid username format: use only letters, numbers, underscore, and dash"}).encode("utf-8"), status=400)
+            return False
+
+        # SECURITY: Prevent reserved usernames
+        reserved_usernames = ['leeloo_dallas', 'root', 'system', 'administrator']
+        if username.lower() in reserved_usernames:
+            self.reply(json.dumps({"error": "Invalid username: reserved system account"}).encode("utf-8"), status=400)
             return False
         
         config = self._cloudparty_load_config()
@@ -8103,7 +8321,7 @@ class HttpCli(object):
             return False
         
         config['accounts'][username] = password
-        
+
         # If admin, add to all volumes with full access
         if is_admin:
             for vol in config.get('volumes', []):
@@ -8113,9 +8331,19 @@ class HttpCli(object):
                         vol['accs']['a'] = f"{current} {username}".strip()
                 else:
                     vol['accs']['a'] = username
-        
+
         self._cloudparty_save_config(config)
-        
+
+        # Update in-memory accounts (password is already hashed by _cloudparty_save_config)
+        try:
+            # Reload the hashed password from saved config
+            saved_config = self._cloudparty_load_config()
+            hashed_pwd = saved_config.get('accounts', {}).get(username, password)
+            self.asrv.acct[username] = hashed_pwd
+            self.asrv.iacct[hashed_pwd] = username
+        except Exception as e:
+            self.log(f"[CloudParty] Warning: Could not update in-memory account: {e}", 1)
+
         self.reply(json.dumps({"success": True, "message": "User added successfully"}).encode("utf-8"))
         return True
 
@@ -8135,10 +8363,25 @@ class HttpCli(object):
             return False
         
         if new_password:
+            # Remove old hash from inverse lookup
+            old_hash = self.asrv.acct.get(username)
+
             config['accounts'][username] = new_password
-        
-        self._cloudparty_save_config(config)
-        
+            self._cloudparty_save_config(config)
+
+            # Update in-memory accounts
+            try:
+                if old_hash and old_hash in self.asrv.iacct:
+                    del self.asrv.iacct[old_hash]
+                saved_config = self._cloudparty_load_config()
+                hashed_pwd = saved_config.get('accounts', {}).get(username, new_password)
+                self.asrv.acct[username] = hashed_pwd
+                self.asrv.iacct[hashed_pwd] = username
+            except Exception as e:
+                self.log(f"[CloudParty] Warning: Could not update in-memory account: {e}", 1)
+        else:
+            self._cloudparty_save_config(config)
+
         self.reply(json.dumps({"success": True, "message": "User updated successfully"}).encode("utf-8"))
         return True
 
@@ -8159,9 +8402,12 @@ class HttpCli(object):
         if username not in config.get('accounts', {}):
             self.reply(json.dumps({"error": "User not found"}).encode("utf-8"), status=404)
             return False
-        
+
+        # Get old hash before deleting
+        old_hash = self.asrv.acct.get(username)
+
         del config['accounts'][username]
-        
+
         # Also remove from volume access lists
         for vol in config.get('volumes', []):
             for perm in list(vol.get('accs', {}).keys()):
@@ -8169,9 +8415,18 @@ class HttpCli(object):
                 if username in users:
                     users.remove(username)
                     vol['accs'][perm] = ' '.join(users)
-        
+
         self._cloudparty_save_config(config)
-        
+
+        # Remove from in-memory accounts
+        try:
+            if username in self.asrv.acct:
+                del self.asrv.acct[username]
+            if old_hash and old_hash in self.asrv.iacct:
+                del self.asrv.iacct[old_hash]
+        except Exception as e:
+            self.log(f"[CloudParty] Warning: Could not remove in-memory account: {e}", 1)
+
         self.reply(json.dumps({"success": True, "message": "User deleted successfully"}).encode("utf-8"))
         return True
 
@@ -8180,18 +8435,62 @@ class HttpCli(object):
         mount_path = body.get('mount_path', '').strip()
         source_path = body.get('source_path', '').strip()
         permissions = body.get('permissions', {})
-        
+
         if not mount_path or not source_path:
             self.reply(json.dumps({"error": "Mount path and source path required"}).encode("utf-8"), status=400)
             return False
-        
+
+        # SECURITY: Validate mount_path format
+        import re
+        if not re.match(r'^/[a-zA-Z0-9_/-]*$', mount_path):
+            self.reply(json.dumps({"error": "Invalid mount path format"}).encode("utf-8"), status=400)
+            return False
+
         # Ensure mount_path starts with /
         if not mount_path.startswith('/'):
             mount_path = '/' + mount_path
-        
+
+        # SECURITY: Normalize source path and validate against dangerous directories
+        import os
+        try:
+            # Resolve to absolute path and normalize
+            source_path = os.path.abspath(os.path.normpath(source_path))
+        except (ValueError, OSError) as e:
+            self.reply(json.dumps({"error": f"Invalid source path: {str(e)}"}).encode("utf-8"), status=400)
+            return False
+
+        # SECURITY: Block dangerous system directories
+        # Windows system paths
+        dangerous_paths_win = [
+            'C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)',
+            'C:\\ProgramData', 'C:\\System Volume Information',
+            'C:\\$Recycle.Bin', 'C:\\Recovery'
+        ]
+        # Unix system paths
+        dangerous_paths_unix = [
+            '/etc', '/bin', '/sbin', '/usr/bin', '/usr/sbin',
+            '/boot', '/dev', '/proc', '/sys', '/root'
+        ]
+
+        source_path_upper = source_path.upper()
+        for dangerous in dangerous_paths_win:
+            if source_path_upper.startswith(dangerous.upper()):
+                self.reply(json.dumps({"error": "Cannot share system directories for security reasons"}).encode("utf-8"), status=403)
+                return False
+
+        for dangerous in dangerous_paths_unix:
+            if source_path.startswith(dangerous):
+                self.reply(json.dumps({"error": "Cannot share system directories for security reasons"}).encode("utf-8"), status=403)
+                return False
+
         # Validate source path exists
         if not bos.path.exists(source_path):
             self.reply(json.dumps({"error": "Source path does not exist"}).encode("utf-8"), status=400)
+            return False
+
+        # SECURITY: Verify it's a directory, not a file
+        if not bos.path.isdir(source_path):
+            self.reply(json.dumps({"error": "Source path must be a directory"}).encode("utf-8"), status=400)
             return False
         
         config = self._cloudparty_load_config()
@@ -8275,6 +8574,112 @@ class HttpCli(object):
         self.reply(json.dumps({"success": True, "message": "Volume deleted successfully"}).encode("utf-8"))
         return True
 
+    def _cloudparty_api_check_setup_status(self, body: dict) -> bool:
+        """
+        Check if CloudParty needs initial setup.
+        This endpoint is publicly accessible (no authentication required).
+        """
+        try:
+            config = self._cloudparty_load_config()
+
+            # Check if setup is needed
+            from .cloudparty_auth import needs_first_time_setup
+
+            setup_needed = needs_first_time_setup(config)
+
+            response = {
+                "setup_needed": setup_needed,
+                "has_config": config is not None
+            }
+
+            self.reply(json.dumps(response).encode("utf-8"))
+            return True
+
+        except Exception as e:
+            self.log(f"Error checking setup status: {e}", 1)
+            self.reply(json.dumps({"error": str(e)}).encode("utf-8"), status=500)
+            return False
+
+    def _cloudparty_api_initial_setup(self, body: dict) -> bool:
+        """
+        Create initial admin account (first-time setup).
+        This endpoint is publicly accessible but only works if no admin exists.
+        """
+        try:
+            # Validate input
+            admin_password = body.get('admin_password', '').strip()
+
+            if not admin_password:
+                self.reply(json.dumps({"error": "Admin password is required"}).encode("utf-8"), status=400)
+                return False
+
+            # Check password strength
+            if len(admin_password) < 8:
+                self.reply(json.dumps({"error": "Password must be at least 8 characters"}).encode("utf-8"), status=400)
+                return False
+
+            # Load existing config
+            config = self._cloudparty_load_config()
+
+            # Check if setup already complete
+            from .cloudparty_auth import needs_first_time_setup
+
+            if not needs_first_time_setup(config):
+                self.reply(json.dumps({"error": "Initial setup already completed. Admin account exists."}).encode("utf-8"), status=403)
+                return False
+
+            # Hash the password using copyparty's own hasher to ensure compatibility
+            # This guarantees the same salt and algorithm as what copyparty uses for verification
+            if self.asrv.ah.on:
+                hashed_password = self.asrv.ah.hash(admin_password)
+            else:
+                # Fallback if password hashing not enabled (shouldn't happen with --ah-alg argon2)
+                from .cloudparty_auth import hash_password_argon2
+                hashed_password = hash_password_argon2(admin_password)
+
+            # Create or update admin account
+            if 'accounts' not in config:
+                config['accounts'] = {}
+
+            config['accounts']['admin'] = hashed_password
+
+            # Save configuration
+            self._cloudparty_save_config(config)
+
+            # CRITICAL: Update in-memory account data so login works immediately
+            # Without this, copyparty still has the old placeholder hash in memory
+            try:
+                # Remove old admin hash from inverse lookup
+                old_hash = self.asrv.acct.get('admin')
+                if old_hash and old_hash in self.asrv.iacct:
+                    del self.asrv.iacct[old_hash]
+
+                # Update account with new hash
+                self.asrv.acct['admin'] = hashed_password
+                self.asrv.iacct[hashed_password] = 'admin'
+
+                self.log("[CloudParty] Updated in-memory account for admin", 6)
+            except Exception as mem_err:
+                self.log(f"[CloudParty] Warning: Could not update in-memory account: {mem_err}", 1)
+
+            self.log("[CloudParty] Initial admin account created successfully", 6)
+
+            response = {
+                "success": True,
+                "message": "Admin account created successfully. Please log in with your credentials.",
+                "redirect": "/"  # Redirect to login page
+            }
+
+            self.reply(json.dumps(response).encode("utf-8"))
+            return True
+
+        except Exception as e:
+            self.log(f"Error during initial setup: {e}", 1)
+            import traceback
+            traceback.print_exc()
+            self.reply(json.dumps({"error": str(e)}).encode("utf-8"), status=500)
+            return False
+
     def _cloudparty_api_save_settings(self, body: dict) -> bool:
         """Save general settings."""
         config = self._cloudparty_load_config()
@@ -8305,7 +8710,86 @@ class HttpCli(object):
             config['qr'] = bool(body['qr'])
         
         self._cloudparty_save_config(config)
-        
+
         self.reply(json.dumps({"success": True, "message": "Settings saved successfully. Restart required for some changes."}).encode("utf-8"))
+        return True
+
+    def _cloudparty_api_change_first_password(self, body: dict) -> bool:
+        """Change password on first login and disable first_login flag."""
+        new_password = body.get('new_password', '').strip()
+
+        # Validate password
+        if not new_password:
+            self.reply(json.dumps({"error": "New password required"}).encode("utf-8"), status=400)
+            return False
+
+        if len(new_password) < 8:
+            self.reply(json.dumps({"error": "Password must be at least 8 characters"}).encode("utf-8"), status=400)
+            return False
+
+        # Load current config
+        config_path = self._cloudparty_get_config_path()
+
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except Exception as e:
+            self.reply(json.dumps({"error": f"Could not read config: {e}"}).encode("utf-8"), status=500)
+            return False
+
+        # Hash the new password using copyparty's hasher
+        try:
+            if self.asrv.ah.on:
+                hashed_password = self.asrv.ah.hash(new_password)
+            else:
+                from .cloudparty_auth import auto_hash_password
+                hashed_password = auto_hash_password(new_password)
+        except Exception as e:
+            self.reply(json.dumps({"error": f"Could not hash password: {e}"}).encode("utf-8"), status=500)
+            return False
+
+        # Update the config file
+        lines = content.split('\n')
+        new_lines = []
+        in_accounts = False
+
+        for line in lines:
+            stripped = line.strip()
+
+            # Skip first_login line
+            if stripped.startswith('first_login:'):
+                continue
+
+            # Track if we're in accounts section
+            if stripped.startswith('[accounts]'):
+                in_accounts = True
+                new_lines.append(line)
+                continue
+            elif stripped.startswith('[') and stripped.endswith(']'):
+                in_accounts = False
+
+            # Replace admin password
+            if in_accounts and stripped.startswith('admin:'):
+                new_lines.append(f"admin: {hashed_password}")
+                continue
+
+            new_lines.append(line)
+
+        # Write updated config
+        try:
+            with open(config_path, 'w', encoding='utf-8') as f:
+                f.write('\n'.join(new_lines))
+        except Exception as e:
+            self.reply(json.dumps({"error": f"Could not write config: {e}"}).encode("utf-8"), status=500)
+            return False
+
+        # Update in-memory password hash if possible
+        try:
+            if hasattr(self.asrv, 'ah') and self.asrv.ah.on:
+                self.asrv.ah.acct['admin'] = hashed_password
+        except:
+            pass  # Non-critical, password will work after restart
+
+        self.reply(json.dumps({"success": True, "message": "Password changed successfully"}).encode("utf-8"))
         return True
 

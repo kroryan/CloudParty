@@ -1,0 +1,17 @@
+# CloudParty Dependencies
+# Core dependencies for running and building CloudParty
+
+# System tray icon
+pystray>=0.19.4
+
+# Image processing for tray icon
+Pillow>=10.0.0
+
+# Password hashing - CRITICAL for security
+argon2-cffi>=23.1.0
+
+# Build tool
+pyinstaller>=6.0.0
+
+# Note: copyparty is included in the project directory
+# and does not need to be installed separately

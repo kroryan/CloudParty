@@ -135,6 +135,33 @@
             display: block;
         }
 
+        .first-login-notice {
+            background: rgba(66, 165, 245, 0.15);
+            border: 1px solid var(--accent);
+            color: var(--text-primary);
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .first-login-notice.show {
+            display: block;
+        }
+
+        .first-login-notice strong {
+            color: var(--accent);
+        }
+
+        .first-login-notice .credentials {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-top: 8px;
+            font-family: monospace;
+        }
+
         .footer {
             text-align: center;
             margin-top: 32px;
@@ -181,6 +208,18 @@
             <p>Secure File Sharing Server</p>
         </div>
 
+        <div id="first-login-notice" class="first-login-notice">
+            <strong>🎉 Welcome to CloudParty!</strong>
+            <p style="margin-top: 8px;">This is your first login. Use the default credentials:</p>
+            <div class="credentials">
+                <strong>Username:</strong> admin<br>
+                <strong>Password:</strong> admin
+            </div>
+            <p style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);">
+                ⚠️ Please change your password after logging in!
+            </p>
+        </div>
+
         <div id="error-msg" class="error-message">
             {{ error_msg if error_msg else '' }}
         </div>
@@ -225,6 +264,16 @@
         if (urlParams.get('error')) {
             errorEl.textContent = decodeURIComponent(urlParams.get('error'));
             errorEl.classList.add('show');
+        }
+
+        // Show first login notice if first_login=1
+        if (urlParams.get('first_login') === '1') {
+            var noticeEl = document.getElementById('first-login-notice');
+            if (noticeEl) {
+                noticeEl.classList.add('show');
+                // Pre-fill username with admin
+                document.getElementById('username').value = 'admin';
+            }
         }
 
         // Debug: Log form submission
