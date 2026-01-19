@@ -36,24 +36,7 @@ if exist cloudparty.ico (
     echo Icon file found: cloudparty.ico
 ) else (
     echo Creating fallback icon...
-    python -c "
-from PIL import Image, ImageDraw
-size = 256
-img = Image.new('RGBA', (size, size), (10, 25, 41, 255))
-draw = ImageDraw.Draw(img)
-# Cloud shape
-draw.ellipse([32, 96, 160, 192], fill=(30, 58, 95, 255))
-draw.ellipse([96, 64, 224, 192], fill=(30, 58, 95, 255))
-draw.ellipse([64, 112, 192, 208], fill=(30, 58, 95, 255))
-# Lighter highlight
-draw.ellipse([48, 104, 144, 176], fill=(66, 165, 245, 255))
-draw.ellipse([112, 80, 208, 176], fill=(66, 165, 245, 255))
-# Upload arrow
-draw.polygon([(128, 100), (88, 160), (168, 160)], fill=(255, 255, 255, 255))
-draw.rectangle([108, 144, 148, 200], fill=(255, 255, 255, 255))
-img.save('cloudparty.ico', format='ICO', sizes=[(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)])
-print('Fallback icon created: cloudparty.ico')
-" 2>nul || echo Warning: Could not create icon, continuing without...
+    python scripts\create_icon.py 2>nul || echo Warning: Could not create icon, continuing without...
 )
 
 echo [4/5] Building executable with PyInstaller...
