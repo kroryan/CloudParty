@@ -8243,6 +8243,7 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
                 'CHANGE_ME_IMMEDIATELY_USE_STRONG_PASSWORD',
                 'CHANGE_THIS_ADMIN_PASSWORD_NOW',
                 'CHANGE_THIS_PASSWORD',
+                'admin',  # Default password - let copyparty hash it at startup
             ]
             if password not in placeholder_passwords:
                 try:
@@ -8250,11 +8251,13 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
                     from .cloudparty_auth import is_password_hashed
                     if not is_password_hashed(password):
                         # Use copyparty's hasher for consistency
+                        # IMPORTANT: copyparty expects "username:password" format for hashing
+                        pwd_to_hash = f"{username}:{password}"
                         if self.asrv.ah.on:
-                            password = self.asrv.ah.hash(password)
+                            password = self.asrv.ah.hash(pwd_to_hash)
                         else:
                             from .cloudparty_auth import auto_hash_password
-                            password = auto_hash_password(password)
+                            password = auto_hash_password(pwd_to_hash)
                 except Exception as e:
                     self.log(f"SECURITY WARNING: Could not hash password for {username}: {e}", 1)
 
@@ -8630,12 +8633,14 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
 
             # Hash the password using copyparty's own hasher to ensure compatibility
             # This guarantees the same salt and algorithm as what copyparty uses for verification
+            # IMPORTANT: copyparty expects "username:password" format for hashing
+            pwd_to_hash = "admin:" + admin_password
             if self.asrv.ah.on:
-                hashed_password = self.asrv.ah.hash(admin_password)
+                hashed_password = self.asrv.ah.hash(pwd_to_hash)
             else:
                 # Fallback if password hashing not enabled (shouldn't happen with --ah-alg argon2)
                 from .cloudparty_auth import hash_password_argon2
-                hashed_password = hash_password_argon2(admin_password)
+                hashed_password = hash_password_argon2(pwd_to_hash)
 
             # Create or update admin account
             if 'accounts' not in config:
@@ -8738,17 +8743,19 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
             return False
 
         # Hash the new password using copyparty's hasher
+        # IMPORTANT: copyparty expects "username:password" format for hashing
         try:
+            pwd_to_hash = "admin:" + new_password
             if self.asrv.ah.on:
-                hashed_password = self.asrv.ah.hash(new_password)
+                hashed_password = self.asrv.ah.hash(pwd_to_hash)
             else:
                 from .cloudparty_auth import auto_hash_password
-                hashed_password = auto_hash_password(new_password)
+                hashed_password = auto_hash_password(pwd_to_hash)
         except Exception as e:
             self.reply(json.dumps({"error": f"Could not hash password: {e}"}).encode("utf-8"), status=500)
             return False
 
-        # Update the config file
+        # Update the config file - store the HASHED password (starts with + and is 33 chars)
         lines = content.split('\n')
         new_lines = []
         in_accounts = False
@@ -8768,7 +8775,7 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
             elif stripped.startswith('[') and stripped.endswith(']'):
                 in_accounts = False
 
-            # Replace admin password
+            # Replace admin password with hashed version
             if in_accounts and stripped.startswith('admin:'):
                 new_lines.append(f"admin: {hashed_password}")
                 continue
@@ -8783,12 +8790,19 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
             self.reply(json.dumps({"error": f"Could not write config: {e}"}).encode("utf-8"), status=500)
             return False
 
-        # Update in-memory password hash if possible
+        # Update in-memory password structures
         try:
-            if hasattr(self.asrv, 'ah') and self.asrv.ah.on:
-                self.asrv.ah.acct['admin'] = hashed_password
-        except:
-            pass  # Non-critical, password will work after restart
+            # Get old hash to remove from iacct
+            old_hash = self.asrv.acct.get('admin')
+            if old_hash and old_hash in self.asrv.iacct:
+                del self.asrv.iacct[old_hash]
+
+            # Update with new hash
+            self.asrv.acct['admin'] = hashed_password
+            self.asrv.iacct[hashed_password] = 'admin'
+        except Exception as e:
+            # Non-critical, password will work after restart
+            pass
 
         self.reply(json.dumps({"success": True, "message": "Password changed successfully"}).encode("utf-8"))
         return True
