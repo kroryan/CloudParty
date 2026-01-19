@@ -4994,7 +4994,7 @@ var showfile = (function () {
 				ro.read().then(function(v) {
 					if (r.tail_id != me)
 						return;
-					var vt = v.done ? '\n*** lost connection to copyparty ***' : v.value;
+					var vt = v.done ? '\n*** lost connection to CloudParty ***' : v.value;
 					if (vt == '\x00')
 						return rf();
 					txt += vt;

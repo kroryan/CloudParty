@@ -832,11 +832,26 @@
         }
 
         function editVolume(path) {
-            alert('Edit volume: ' + path + '\n\nUse the delete button to remove and re-add with new settings.');
+            // For now, show a prompt to change read permissions
+            var newPerms = prompt('Edit volume "' + escapeHtml(path) + '"\n\nEnter new read permission (e.g., "*" for everyone, "admin" for admin only):', 'admin');
+            if (newPerms !== null) {
+                apiCall('edit_volume', {mount_path: path, permissions: {r: newPerms, rw: 'admin'}})
+                    .then(function(data) {
+                        if (data.success) {
+                            showAlert('Volume updated. Restart may be required.', 'success');
+                            setTimeout(function() { window.location.reload(); }, 1500);
+                        } else {
+                            showAlert('Error: ' + data.error, 'error');
+                        }
+                    })
+                    .catch(function(err) {
+                        showAlert('Error: ' + err.message, 'error');
+                    });
+            }
         }
 
         function deleteVolume(path) {
-            if (confirm('Are you sure you want to delete volume "' + path + '"?')) {
+            if (confirm('Are you sure you want to delete volume "' + escapeHtml(path) + '"?')) {
                 apiCall('delete_volume', {mount_path: path})
                     .then(function(data) {
                         if (data.success) {
@@ -851,6 +866,13 @@
             }
         }
 
+        // HTML escape function to prevent XSS
+        function escapeHtml(text) {
+            var div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         function browseFolders() {
             showModal('folder-browser-modal');
             loadFolders('');
@@ -859,31 +881,48 @@
         function loadFolders(path) {
             currentBrowserPath = path || '';
             document.getElementById('current-browser-path').textContent = currentBrowserPath || 'Drives';
-            
+
             fetch(SR + '/?cloudparty_api=browse_folders&path=' + encodeURIComponent(currentBrowserPath))
                 .then(r => r.json())
                 .then(data => {
-                    var html = '';
+                    var container = document.getElementById('folder-list');
+                    container.innerHTML = '';
+
                     if (currentBrowserPath) {
-                        html += '<div class="folder-item" onclick="loadFolders(\'' + (data.parent || '').replace(/'/g, "\\'") + '\')">';
-                        html += '<svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>';
-                        html += '<span>..</span></div>';
+                        var backItem = document.createElement('div');
+                        backItem.className = 'folder-item';
+                        backItem.innerHTML = '<svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg><span>..</span>';
+                        backItem.addEventListener('click', function() { loadFolders(data.parent || ''); });
+                        container.appendChild(backItem);
                     }
                     if (data.folders) {
                         data.folders.forEach(function(folder) {
-                            html += '<div class="folder-item" onclick="loadFolders(\'' + folder.path.replace(/\\/g, '/').replace(/'/g, "\\'") + '\')">';
-                            html += '<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>';
-                            html += '<span>' + folder.name + '</span></div>';
+                            var item = document.createElement('div');
+                            item.className = 'folder-item';
+                            item.innerHTML = '<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>';
+                            var nameSpan = document.createElement('span');
+                            nameSpan.textContent = folder.name;  // Safe: textContent escapes HTML
+                            item.appendChild(nameSpan);
+                            var folderPath = folder.path.replace(/\\/g, '/');
+                            item.addEventListener('click', function() { loadFolders(folderPath); });
+                            container.appendChild(item);
                         });
                     }
                     if (data.error) {
-                        html += '<div style="padding: 16px; color: var(--error);">' + data.error + '</div>';
+                        var errorDiv = document.createElement('div');
+                        errorDiv.style.cssText = 'padding: 16px; color: var(--error);';
+                        errorDiv.textContent = data.error;
+                        container.appendChild(errorDiv);
                     }
-                    document.getElementById('folder-list').innerHTML = html;
                 })
                 .catch(err => {
                     console.error('Error loading folders:', err);
-                    document.getElementById('folder-list').innerHTML = '<div style="padding: 16px; color: var(--error);">Error loading folders</div>';
+                    var container = document.getElementById('folder-list');
+                    container.innerHTML = '';
+                    var errorDiv = document.createElement('div');
+                    errorDiv.style.cssText = 'padding: 16px; color: var(--error);';
+                    errorDiv.textContent = 'Error loading folders';
+                    container.appendChild(errorDiv);
                 });
         }
 
@@ -1026,7 +1065,7 @@
         }
         async function fetchLogs(){
             try {
-                var res = await fetch('/?cloudparty_api=logs&limit=800', { cache: 'no-store' });
+                var res = await fetch(SR + '/?cloudparty_api=logs&limit=800', { cache: 'no-store' });
                 if (!res.ok) return;
                 var js = await res.json();
                 var lines = (js && js.lines) ? js.lines : [];

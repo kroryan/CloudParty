@@ -9,6 +9,7 @@
 	<meta name="theme-color" content="#{{ tcolor }}">
 	<link rel="stylesheet" media="screen" href="{{ r }}/.cpr/splash.css?_={{ ts }}">
 	<link rel="stylesheet" media="screen" href="{{ r }}/.cpr/ui.css?_={{ ts }}">
+	<link rel="stylesheet" media="screen" href="{{ r }}/.cpr/cloudparty.css?_={{ ts }}">
 	<style>ul{padding-left:1.3em}li{margin:.4em 0}.txa{float:right;margin:0 0 0 1em}</style>
 {{ html_head }}
 </head>
@@ -43,7 +44,7 @@
 
 
         {% if args.have_idp_hdrs %}
-        <p style="line-height:2em"><b>WARNING:</b> this server is using IdP-based authentication, so this stuff may not work as advertised. Depending on server config, these commands can probably only be used to access areas which don't require authentication, unless you auth using any non-IdP accounts defined in the copyparty config. Please see <a href="https://github.com/9001/copyparty/blob/hovudstraum/docs/idp.md#connecting-webdav-clients">the IdP docs</a></p>
+        <p style="line-height:2em"><b>WARNING:</b> this server is using IdP-based authentication, so this stuff may not work as advertised. Depending on server config, these commands can probably only be used to access areas which don't require authentication, unless you auth using any non-IdP accounts defined in the CloudParty config. Please see <a href="https://github.com/kroryan/CloudParty/blob/main/docs/idp.md#connecting-webdav-clients">the IdP docs</a></p>
         {%- endif %}
 
 
@@ -280,10 +281,10 @@
         <div class="os win">
             <h1>ShareX</h1>
 
-            <p>to upload screenshots using ShareX <a href="https://getsharex.com/">v15+</a>, save this as <code>copyparty.sxcu</code> and run it:</p>
+            <p>to upload screenshots using ShareX <a href="https://getsharex.com/">v15+</a>, save this as <code>cloudparty.sxcu</code> and run it:</p>
 
-            <pre class="dl" name="copyparty.sxcu">
-                { "Version": "15.0.0", "Name": "copyparty",
+            <pre class="dl" name="cloudparty.sxcu">
+                { "Version": "15.0.0", "Name": "CloudParty",
                 "RequestURL": "http{{ s }}://{{ ep }}/{{ rvp }}",
                 "Headers": {
                     {% if accs %}"pw": "<b>{{ unpw }}</b>", {% endif %}"accept": "url"
@@ -293,10 +294,10 @@
                 "RequestMethod": "POST", "FileFormName": "f" }
             </pre>
 
-            <p>for ShareX <a href="https://github.com/ShareX/ShareX/releases/tag/v12.1.1">v12</a> specifically, save this as <code>copyparty.sxcu</code> and run it:</p>
+            <p>for ShareX <a href="https://github.com/ShareX/ShareX/releases/tag/v12.1.1">v12</a> specifically, save this as <code>cloudparty.sxcu</code> and run it:</p>
 
-            <pre class="dl" name="copyparty.sxcu">
-                { "Name": "copyparty",
+            <pre class="dl" name="cloudparty.sxcu">
+                { "Name": "CloudParty",
                 "RequestURL": "http{{ s }}://{{ ep }}/{{ rvp }}",
                 "Headers": {
                     {% if accs %}"pw": "<b>{{ unpw }}</b>", {% endif %}"accept": "url"
@@ -311,10 +312,10 @@
         <div class="os mac">
             <h1>ishare</h1>
 
-            <p>to upload screenshots using <a href="https://isharemac.app/">ishare</a>, save this as <code>copyparty.iscu</code> and run it:</p>
+            <p>to upload screenshots using <a href="https://isharemac.app/">ishare</a>, save this as <code>cloudparty.iscu</code> and run it:</p>
 
-            <pre class="dl" name="copyparty.iscu">
-                { "Name": "copyparty",
+            <pre class="dl" name="cloudparty.iscu">
+                { "Name": "CloudParty",
                 "RequestURL": "http{{ s }}://{{ ep }}/{{ rvp }}",
                 "Headers": {
                     {%- if accs %}

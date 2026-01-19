@@ -201,7 +201,7 @@ function vis_exh(msg, url, lineNo, columnNo, error) {
     window.onerror = undefined;
     var html = [
         '<h1>you hit a bug!</h1>',
-        '<p style="font-size:1.3em;margin:0;line-height:2em">try to <a href="#" onclick="localStorage.clear();location.reload();">reset copyparty settings</a> if you are stuck here, or <a href="#" onclick="ignex();">ignore this</a> / <a href="#" onclick="ignex(true);">ignore all</a> / <a href="?b=u">basic</a></p>',
+        '<p style="font-size:1.3em;margin:0;line-height:2em">try to <a href="#" onclick="localStorage.clear();location.reload();">reset CloudParty settings</a> if you are stuck here, or <a href="#" onclick="ignex();">ignore this</a> / <a href="#" onclick="ignex(true);">ignore all</a> / <a href="?b=u">basic</a></p>',
         '<p style="color:#fff">please send me a screenshot arigathanks gozaimuch: <a href="<ghi>" target="_blank">new github issue</a></p>',
         '<p class="b">' + esc(url + ' @' + lineNo + ':' + columnNo), '<br />' + esc(msg).replace(/\n/g, '<br />') + '</p>',
         '<p><b>UA:</b> ' + esc(UA)
@@ -280,7 +280,7 @@ function vis_exh(msg, url, lineNo, columnNo, error) {
             );
             document.head.appendChild(s);
         }
-        exbox.innerHTML = basenames(html.join('\n')).replace(/<ghi>/, 'https://github.com/9001/copyparty/issues/new?labels=bug&template=bug_report.md');
+        exbox.innerHTML = basenames(html.join('\n')).replace(/<ghi>/, 'https://github.com/kroryan/CloudParty/issues/new?labels=bug&template=bug_report.md');
         exbox.style.display = 'block';
     }
     catch (e) {

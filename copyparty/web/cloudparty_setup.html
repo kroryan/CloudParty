@@ -478,10 +478,10 @@
 
                 if (!data.setup_needed) {
                     // Setup already complete, redirect to main page
-                    showError('Setup already completed. Redirecting...');
+                    showSuccess('Setup already completed. Redirecting to login...');
                     setTimeout(() => {
                         window.location.href = '/';
-                    }, 2000);
+                    }, 1500);
                 }
             } catch (error) {
                 console.error('Error checking setup status:', error);

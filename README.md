@@ -1,10 +1,46 @@
 # CloudParty
 
-A modern, self-hosted file sharing server with a beautiful dark-themed web interface. CloudParty is a wrapper around [copyparty](https://github.com/9001/copyparty) that provides a user-friendly system tray application and web-based administration panel.
+**Your Personal Cloud Storage, Simplified.**
+
+CloudParty is a modern, self-hosted personal cloud server designed for simplicity. Think of it as your own Nextcloud or Google Drive, but without the complex setup and configuration headaches. Just run the executable and you have your own secure file sharing server.
 
 ![CloudParty](https://img.shields.io/badge/version-1.0.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
+
+## What is CloudParty?
+
+CloudParty started as a fork of the excellent [copyparty](https://github.com/9001/copyparty) project, but has evolved into its own standalone application with a focus on:
+
+- **Zero Configuration**: Download, run, done. No complicated setup required.
+- **Windows-First**: Optimized for Windows with system tray integration.
+- **Beautiful UI**: Modern dark blue theme that's easy on the eyes.
+- **Web-Based Admin**: Manage everything from your browser.
+- **Personal Cloud**: Host your own files and share them securely.
+
+### CloudParty vs Nextcloud
+
+| Feature | CloudParty | Nextcloud |
+|---------|------------|-----------|
+| Installation | Single exe | Server + Database + PHP |
+| Configuration | Minimal | Extensive |
+| Resource Usage | Light | Heavy |
+| Learning Curve | Minutes | Hours/Days |
+| Target User | Personal/Small Teams | Enterprise |
+
+### CloudParty vs copyparty
+
+CloudParty builds upon copyparty with these enhancements:
+
+| Feature | CloudParty | copyparty |
+|---------|------------|-----------|
+| GUI Admin Panel | Floating admin button | None (CLI/config only) |
+| First-Time Setup | Web wizard | Manual config |
+| User Management | Web interface | Config file |
+| Volume Management | Browser-based | Config file |
+| System Tray | Native integration | External tools |
+| Theme | Modern blue theme | Multiple themes |
+| Default Auth | Required | Optional |
 
 ## Features
 

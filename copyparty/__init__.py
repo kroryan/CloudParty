@@ -68,6 +68,7 @@ web/cloudparty_admin.html
 web/cloudparty_change_password.html
 web/cloudparty_login.html
 web/cloudparty_setup.html
+web/cloudparty_floating_admin.html
 web/copyparty.gif
 web/deps/busy.mp3
 web/deps/easymde.css

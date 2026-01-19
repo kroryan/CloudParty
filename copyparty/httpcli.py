@@ -7531,183 +7531,18 @@ class HttpCli(object):
                 zs = self.html_head + "\n%s\n" % ("\n".join(oghs),)
                 self.html_head = zs.replace("\n\n", "\n")
 
-        # CloudParty: Admin-only controls (Admin + Console)
+        # CloudParty: Admin floating panel (Admin users only)
         if self.uname == "admin":
-            admin_button_html = """
-<style>
-.cp-fab-wrap { position: fixed; right: 20px; bottom: 20px; z-index: 999999; display: flex; flex-direction: column; gap: 12px; align-items: flex-end; }
-.cp-fab-admin {
-    width: 54px; height: 54px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    background: linear-gradient(135deg, #42a5f5 0%, #1976d2 100%);
-    color: #fff !important; text-decoration: none;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
-    font-size: 22px;
-}
-.cp-fab-admin:hover { filter: brightness(1.08); transform: translateY(-1px); }
-
-.cp-fab-console {
-    display: inline-flex; align-items: center; gap: 10px;
-    padding: 14px 18px;
-    border-radius: 999px;
-    background: rgba(20, 20, 20, 0.92);
-    color: #fff !important;
-    text-decoration: none;
-    box-shadow: 0 10px 28px rgba(0,0,0,0.35);
-    font: 600 14px/1.0 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-    letter-spacing: 0.2px;
-}
-.cp-fab-console:hover { filter: brightness(1.08); transform: translateY(-1px); }
-.cp-fab-console .cp-ico { font-size: 16px; opacity: 0.95; }
-
-.cp-console-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000000; display: none; }
-.cp-console-panel {
-    position: fixed; left: 24px; right: 24px; bottom: 24px;
-    height: min(60vh, 560px);
-    background: #0d1117;
-    border: 1px solid rgba(66,165,245,0.25);
-    border-radius: 14px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
-    z-index: 1000001;
-    display: none;
-    overflow: hidden;
-}
-.cp-console-head {
-    height: 48px;
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0 14px;
-    background: rgba(19,47,76,0.9);
-    border-bottom: 1px solid rgba(66,165,245,0.25);
-    color: #e3f2fd;
-    font: 600 13px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-}
-.cp-console-actions { display: flex; gap: 10px; align-items: center; }
-.cp-console-btn {
-    background: rgba(255,255,255,0.08);
-    color: #e3f2fd;
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 10px;
-    padding: 7px 10px;
-    cursor: pointer;
-    font: 600 12px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-}
-.cp-console-btn:hover { background: rgba(255,255,255,0.12); }
-.cp-console-body {
-    height: calc(100% - 48px);
-    overflow: auto;
-    padding: 12px 14px;
-    color: #b8d4e8;
-    font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-    white-space: pre-wrap;
-}
-.cp-console-line { color: #b8d4e8; }
-</style>
-
-<script>
-(function() {
-    function qs(sel) { return document.querySelector(sel); }
-
-    function ensureUi() {
-        if (qs('.cp-fab-wrap')) return;
-
-        var wrap = document.createElement('div');
-        wrap.className = 'cp-fab-wrap';
-
-        var consoleBtn = document.createElement('a');
-        consoleBtn.href = '#';
-        consoleBtn.className = 'cp-fab-console';
-        consoleBtn.innerHTML = '<span class="cp-ico">🖥️</span><span>Console</span>';
-
-        var adminBtn = document.createElement('a');
-        adminBtn.href = '/?cloudparty_admin';
-        adminBtn.className = 'cp-fab-admin';
-        adminBtn.title = 'CloudParty Admin Panel';
-        adminBtn.textContent = '⚙️';
-
-        wrap.appendChild(consoleBtn);
-        wrap.appendChild(adminBtn);
-        document.body.appendChild(wrap);
-
-        var ov = document.createElement('div');
-        ov.className = 'cp-console-overlay';
-        var panel = document.createElement('div');
-        panel.className = 'cp-console-panel';
-        panel.innerHTML =
-            '<div class="cp-console-head">' +
-                '<div>Application Console</div>' +
-                '<div class="cp-console-actions">' +
-                    '<button class="cp-console-btn" data-act="clear">Clear</button>' +
-                    '<button class="cp-console-btn" data-act="close">Close</button>' +
-                '</div>' +
-            '</div>' +
-            '<div class="cp-console-body" id="cp-console-body"></div>';
-
-        document.body.appendChild(ov);
-        document.body.appendChild(panel);
-
-        function setOpen(open) {
-            ov.style.display = open ? 'block' : 'none';
-            panel.style.display = open ? 'block' : 'none';
-            if (open) startPolling(); else stopPolling();
-        }
-
-        var pollTimer = 0;
-        function stopPolling() {
-            if (pollTimer) { clearInterval(pollTimer); pollTimer = 0; }
-        }
-
-        var lastText = '';
-        async function fetchLogs() {
-            try {
-                var res = await fetch('/?cloudparty_api=logs&limit=800', { cache: 'no-store' });
-                if (!res.ok) return;
-                var js = await res.json();
-                var lines = (js && js.lines) ? js.lines : [];
-                var text = lines.join('\n');
-                if (text === lastText) return;
-                lastText = text;
-                var body = document.getElementById('cp-console-body');
-                if (!body) return;
-                body.textContent = text;
-                body.scrollTop = body.scrollHeight;
-            } catch (e) {
-                // ignore
-            }
-        }
-
-        function startPolling() {
-            fetchLogs();
-            stopPolling();
-            pollTimer = setInterval(fetchLogs, 1000);
-        }
-
-        consoleBtn.addEventListener('click', function(ev) {
-            ev.preventDefault();
-            setOpen(true);
-        });
-        ov.addEventListener('click', function() { setOpen(false); });
-        panel.addEventListener('click', function(ev) {
-            var t = ev.target;
-            if (!t || !t.getAttribute) return;
-            var act = t.getAttribute('data-act');
-            if (act === 'close') setOpen(false);
-            if (act === 'clear') {
-                var body = document.getElementById('cp-console-body');
-                if (body) body.textContent = '';
-                lastText = '';
-            }
-        });
-    }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', ensureUi);
-    } else {
-        ensureUi();
-    }
-})();
-</script>
-"""
-            self.html_head += admin_button_html
+            try:
+                # Load floating admin panel from resources
+                admin_panel_res = load_resource(self.E, "web/cloudparty_floating_admin.html")
+                admin_panel_html = admin_panel_res.read().decode("utf-8")
+                admin_panel_res.close()
+                # Add username for JS to detect admin
+                self.html_head += f"<script>window.uname='{self.uname}';</script>\n"
+                self.html_head += admin_panel_html
+            except Exception as e:
+                self.log(f"[CloudParty] Could not load admin panel: {e}", 1)
 
         html = self.j2s(tpl, **j2a)
         self.reply(html.encode("utf-8", "replace"))
@@ -8166,6 +8001,8 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
                 return self._cloudparty_api_delete_volume(body)
             elif action == "save_settings":
                 return self._cloudparty_api_save_settings(body)
+            elif action == "get_settings":
+                return self._cloudparty_api_get_settings()
             elif action == "change_first_password":
                 return self._cloudparty_api_change_first_password(body)
             else:
@@ -8246,20 +8083,22 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
                 'admin',  # Default password - let copyparty hash it at startup
             ]
             if password not in placeholder_passwords:
-                try:
-                    # Check if password is already hashed (copyparty format: starts with + and 33 chars)
-                    from .cloudparty_auth import is_password_hashed
-                    if not is_password_hashed(password):
-                        # Use copyparty's hasher for consistency
-                        # IMPORTANT: copyparty expects "username:password" format for hashing
-                        pwd_to_hash = f"{username}:{password}"
+                # Check if password is already hashed (copyparty format: starts with + and 33 chars)
+                from .cloudparty_auth import is_password_hashed
+                if not is_password_hashed(password):
+                    # Use copyparty's hasher for consistency
+                    # IMPORTANT: copyparty expects "username:password" format for hashing
+                    pwd_to_hash = f"{username}:{password}"
+                    try:
                         if self.asrv.ah.on:
                             password = self.asrv.ah.hash(pwd_to_hash)
                         else:
                             from .cloudparty_auth import auto_hash_password
                             password = auto_hash_password(pwd_to_hash)
-                except Exception as e:
-                    self.log(f"SECURITY WARNING: Could not hash password for {username}: {e}", 1)
+                    except Exception as e:
+                        # SECURITY: Do NOT save plaintext passwords - raise error instead
+                        self.log(f"SECURITY ERROR: Could not hash password for {username}: {e}", 1)
+                        raise RuntimeError(f"Failed to hash password for {username}: {e}")
 
             lines.append(f"{username}: {password}")
         
@@ -8284,22 +8123,43 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
                     lines.append(f"{perm}: {users}")
         
         lines.append("")
-        
-        with open(config_path, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(lines))
+
+        # Write config file with verification
+        content = '\n'.join(lines)
+        try:
+            with open(config_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+                f.flush()
+                os.fsync(f.fileno())  # Ensure data is written to disk
+        except Exception as e:
+            self.log(f"[CloudParty] ERROR: Failed to write config file: {e}", 1)
+            raise
+
+        # Verify file was written correctly
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                if len(f.read()) < 10:
+                    raise RuntimeError("Config file appears to be corrupted (too small)")
+        except Exception as e:
+            self.log(f"[CloudParty] ERROR: Config verification failed: {e}", 1)
+            raise
 
     def _cloudparty_api_add_user(self, body: dict) -> bool:
         """Add a new user."""
         username = body.get('username', '').strip()
         password = body.get('password', '').strip()
         is_admin = body.get('is_admin', False)
-        
+
         if not username or not password:
             self.reply(json.dumps({"error": "Username and password required"}).encode("utf-8"), status=400)
             return False
-        
+
+        # Validate password length
+        if len(password) < 4:
+            self.reply(json.dumps({"error": "Password must be at least 4 characters"}).encode("utf-8"), status=400)
+            return False
+
         # SECURITY: Enhanced username validation to prevent injection attacks
-        # Block characters that could break configuration file format
         invalid_chars = [':', ' ', '\n', '\r', '\t', '#', '[', ']', '=']
         if any(char in username for char in invalid_chars):
             self.reply(json.dumps({"error": "Invalid username format: contains forbidden characters"}).encode("utf-8"), status=400)
@@ -8312,18 +8172,31 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
             return False
 
         # SECURITY: Prevent reserved usernames
-        reserved_usernames = ['leeloo_dallas', 'root', 'system', 'administrator']
-        if username.lower() in reserved_usernames:
+        reserved_usernames = ['leeloo_dallas', 'root', 'system', 'administrator', 'admin']
+        if username.lower() in reserved_usernames and username.lower() != 'admin':
             self.reply(json.dumps({"error": "Invalid username: reserved system account"}).encode("utf-8"), status=400)
             return False
-        
+
         config = self._cloudparty_load_config()
-        
+
         if username in config.get('accounts', {}):
             self.reply(json.dumps({"error": "User already exists"}).encode("utf-8"), status=400)
             return False
-        
-        config['accounts'][username] = password
+
+        # Hash the password IMMEDIATELY before storing (username:password format)
+        try:
+            pwd_to_hash = f"{username}:{password}"
+            if self.asrv.ah.on:
+                hashed_pwd = self.asrv.ah.hash(pwd_to_hash)
+            else:
+                from .cloudparty_auth import auto_hash_password
+                hashed_pwd = auto_hash_password(pwd_to_hash)
+        except Exception as e:
+            self.reply(json.dumps({"error": f"Could not hash password: {e}"}).encode("utf-8"), status=500)
+            return False
+
+        # Store the HASHED password
+        config['accounts'][username] = hashed_pwd
 
         # If admin, add to all volumes with full access
         if is_admin:
@@ -8337,11 +8210,8 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
 
         self._cloudparty_save_config(config)
 
-        # Update in-memory accounts (password is already hashed by _cloudparty_save_config)
+        # Update in-memory accounts
         try:
-            # Reload the hashed password from saved config
-            saved_config = self._cloudparty_load_config()
-            hashed_pwd = saved_config.get('accounts', {}).get(username, password)
             self.asrv.acct[username] = hashed_pwd
             self.asrv.iacct[hashed_pwd] = username
         except Exception as e:
@@ -8354,36 +8224,51 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
         """Edit an existing user."""
         username = body.get('username', '').strip()
         new_password = body.get('password', '').strip()
-        
+
         if not username:
             self.reply(json.dumps({"error": "Username required"}).encode("utf-8"), status=400)
             return False
-        
+
+        # Validate password if provided
+        if new_password and len(new_password) < 4:
+            self.reply(json.dumps({"error": "Password must be at least 4 characters"}).encode("utf-8"), status=400)
+            return False
+
         config = self._cloudparty_load_config()
-        
+
         if username not in config.get('accounts', {}):
             self.reply(json.dumps({"error": "User not found"}).encode("utf-8"), status=404)
             return False
-        
+
         if new_password:
-            # Remove old hash from inverse lookup
+            # Hash the new password BEFORE storing (username:password format)
+            try:
+                pwd_to_hash = f"{username}:{new_password}"
+                if self.asrv.ah.on:
+                    hashed_pwd = self.asrv.ah.hash(pwd_to_hash)
+                else:
+                    from .cloudparty_auth import auto_hash_password
+                    hashed_pwd = auto_hash_password(pwd_to_hash)
+            except Exception as e:
+                self.reply(json.dumps({"error": f"Could not hash password: {e}"}).encode("utf-8"), status=500)
+                return False
+
+            # Get old hash BEFORE making changes
             old_hash = self.asrv.acct.get(username)
 
-            config['accounts'][username] = new_password
+            # Store the HASHED password in config
+            config['accounts'][username] = hashed_pwd
             self._cloudparty_save_config(config)
 
-            # Update in-memory accounts
+            # Update in-memory accounts (delete old AFTER confirming new is ready)
             try:
-                if old_hash and old_hash in self.asrv.iacct:
-                    del self.asrv.iacct[old_hash]
-                saved_config = self._cloudparty_load_config()
-                hashed_pwd = saved_config.get('accounts', {}).get(username, new_password)
                 self.asrv.acct[username] = hashed_pwd
                 self.asrv.iacct[hashed_pwd] = username
+                # Only delete old hash after new one is set
+                if old_hash and old_hash in self.asrv.iacct and old_hash != hashed_pwd:
+                    del self.asrv.iacct[old_hash]
             except Exception as e:
                 self.log(f"[CloudParty] Warning: Could not update in-memory account: {e}", 1)
-        else:
-            self._cloudparty_save_config(config)
 
         self.reply(json.dumps({"success": True, "message": "User updated successfully"}).encode("utf-8"))
         return True
@@ -8685,17 +8570,43 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
             self.reply(json.dumps({"error": str(e)}).encode("utf-8"), status=500)
             return False
 
+    def _cloudparty_api_get_settings(self) -> bool:
+        """Get current server settings."""
+        try:
+            config = self._cloudparty_load_config()
+
+            settings = {
+                'port': config.get('port', 3923),
+                'interface': config.get('interface', '::'),
+                'theme': config.get('theme', 'cloudparty'),
+                'e2dsa': config.get('e2dsa', True),
+                'e2ts': config.get('e2ts', True),
+                'zeroconf': config.get('zeroconf', False),
+                'qr': config.get('qr', False)
+            }
+
+            self.reply(json.dumps(settings).encode("utf-8"))
+            return True
+        except Exception as e:
+            self.reply(json.dumps({"error": str(e)}).encode("utf-8"), status=500)
+            return False
+
     def _cloudparty_api_save_settings(self, body: dict) -> bool:
         """Save general settings."""
         config = self._cloudparty_load_config()
-        
-        # Update settings from body
+
+        # Update settings from body with validation
         if 'port' in body:
             try:
-                config['port'] = int(body['port'])
-            except:
-                pass
-        
+                port = int(body['port'])
+                if port < 1 or port > 65535:
+                    self.reply(json.dumps({"error": "Port must be between 1 and 65535"}).encode("utf-8"), status=400)
+                    return False
+                config['port'] = port
+            except (ValueError, TypeError):
+                self.reply(json.dumps({"error": "Invalid port number"}).encode("utf-8"), status=400)
+                return False
+
         if 'interface' in body:
             config['interface'] = str(body['interface'])
         
