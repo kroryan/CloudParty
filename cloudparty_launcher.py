@@ -313,20 +313,27 @@ def load_config():
                 elif current_section == 'accounts':
                     parsed['accounts'][key] = value
                 elif current_section == 'volume' and parsed['volumes']:
+                    # Handle known volume keys
                     if key == 'accs':
-                        # Next lines will have the actual permissions
+                        # Permissions will be parsed in subsequent lines
                         pass
+                    elif key == 'source':
+                        # Explicit source path for the volume (e.g., D:/)
+                        parsed['volumes'][-1]['source'] = value
+                    elif key == 'path':
+                        # Alternative name for mount path; stored as 'path'
+                        parsed['volumes'][-1]['path'] = value
                     elif key in ('r', 'w', 'rw', 'rwm', 'rwmd', 'a', 'g', 'G', 'wG'):
-                        # This is a permission line
+                        # Permission line
                         parsed['volumes'][-1]['accs'][key] = value
                     elif key == 'flags':
-                        # Next lines or value contains flags
+                        # Flags list may be inline or on following lines
                         if value:
                             parsed['volumes'][-1]['flags'].extend(
                                 [f.strip() for f in value.replace(',', ' ').split() if f.strip()]
                             )
                     else:
-                        # Check if it's a flag
+                        # Treat everything else as a flag (key=value or bare flag)
                         if value:
                             parsed['volumes'][-1]['flags'].append(f'{key}={value}')
                         else:
@@ -390,8 +397,10 @@ def create_default_config():
         # Format for copyparty: "C: /path/to/folder" (drive letter, colon, space, path starting with /)
         if len(default_volume) >= 2 and default_volume[1] == ':':
             drive_letter = default_volume[0]
-            path_rest = default_volume[2:]  # Everything after "C:"
-            volume_line = f"{drive_letter}: {path_rest}"
+            # Remove any leading slash from the remainder to avoid double slashes
+            path_rest = default_volume[2:].lstrip('/')
+            # Ensure the format includes a slash after the colon as required by copyparty
+            volume_line = f"{drive_letter}:/{path_rest}"
         else:
             volume_line = default_volume
     else:
@@ -567,6 +576,11 @@ def build_args_from_config(config):
 
         # Normalize source path (use forward slashes)
         source_dir = source_dir.replace('\\', '/')
+        # Ensure drive-letter paths have a leading slash after the colon (e.g., "C:/path")
+        # copyparty expects the format "C:/..."; if we have "C:folder" we add the missing '/'.
+        if len(source_dir) >= 2 and source_dir[1] == ':' and not source_dir.startswith(source_dir[0] + ':/'):
+            # Insert a '/' after the colon if not already present
+            source_dir = f"{source_dir[0]}:/{source_dir[2:]}" if len(source_dir) > 2 else f"{source_dir[0]}:/"
 
         # Build permission parts: perm,user format
         # Filter out users that don't exist in accounts (except '*' which means everyone)
@@ -632,12 +646,16 @@ def build_args_from_config(config):
             args.extend(['--css-browser', str(css_file)])
     elif theme.isdigit():
         args.extend(['--theme', theme])
-    
+
     # Require username+password for CloudParty only if accounts are defined
     if defined_users:
         args.append('--usernames')
     else:
         print("[CloudParty] Warning: No accounts defined - running in anonymous mode")
+
+    # Provide a dummy per-file accesskey salt to avoid writing fk-salt.txt
+    # This prevents permission errors when APPDATA is not writable.
+    args.extend(['--fk-salt', 'dummy_salt_123456'])
     
     # Extra global flags
     global_cfg = parsed.get('global', {})
@@ -877,6 +895,14 @@ class CloudPartyTray:
     def run(self):
         """Main entry point."""
         _debug_log("run() called")
+
+        # Ensure a writable APPDATA to avoid fk-salt permission errors
+        try:
+            writable_appdata = os.path.join(os.getcwd(), 'temp_appdata')
+            os.makedirs(writable_appdata, exist_ok=True)
+            os.environ['APPDATA'] = writable_appdata
+        except Exception:
+            pass
 
         # Set up console handler to intercept close button
         setup_console_handler()
