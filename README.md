@@ -1,7 +1,7 @@
 # CloudParty
 
 **Your Personal Cloud Storage, Simplified.**
-
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/kroryan/CloudParty)
 CloudParty is a modern, self-hosted personal cloud server designed for simplicity. Think of it as your own Nextcloud or Google Drive, but without the complex setup and configuration headaches. Just run the executable and you have your own secure file sharing server.
 
 ![CloudParty](https://img.shields.io/badge/version-1.0.0-blue.svg)
