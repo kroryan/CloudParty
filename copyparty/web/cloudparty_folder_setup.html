@@ -545,19 +545,23 @@
 
             try {
                 // Create volumes from selected folders
-                var volumes = selectedFolders.map(function(path, index) {
-                    // Generate mount path from folder name
-                    var parts = path.replace(/\/$/, '').split('/');
-                    var name = parts[parts.length - 1] || parts[parts.length - 2] || 'files';
-                    // Make mount path unique
-                    var mountPath = '/' + name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-                    if (index > 0 && mountPath === '/files') {
-                        mountPath = '/files-' + index;
+                var volumes = selectedFolders.map(function(path) {
+                    // Generate mount path from drive letter or folder name
+                    var mountPath;
+                    // Check if it's a drive root (like C:/ or D:/)
+                    if (path.match(/^[A-Z]:\/$/i)) {
+                        var driveLetter = path.charAt(0).toUpperCase();
+                        mountPath = '/' + driveLetter;
+                    } else {
+                        // Extract folder name from path
+                        var parts = path.replace(/\/$/, '').replace(/\\/g, '/').split('/');
+                        var name = parts[parts.length - 1] || 'files';
+                        mountPath = '/' + name.toLowerCase().replace(/[^a-z0-9]/g, '-');
                     }
                     return {
                         mount_path: mountPath,
                         source_path: path,
-                        permissions: { r: 'admin', rw: 'admin' }
+                        permissions: { r: '*', rw: 'admin' }  // Everyone can read, admin can write
                     };
                 });
 

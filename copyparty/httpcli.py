@@ -8035,6 +8035,10 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
                 return self._cloudparty_api_get_drives()
             elif action == "setup_volumes":
                 return self._cloudparty_api_setup_volumes(body)
+            elif action == "get_volumes":
+                return self._cloudparty_api_get_volumes()
+            elif action == "restart_server":
+                return self._cloudparty_api_restart_server()
             else:
                 self.reply(json.dumps({"error": "Unknown action"}).encode("utf-8"), status=400)
                 return False
@@ -8144,11 +8148,14 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
             if source:
                 # Normalize path separators
                 source = source.replace('\\', '/')
-                # Handle Windows paths (e.g., C:/path)
+                # Handle Windows paths (e.g., C:/path or D:/)
                 if len(source) >= 2 and source[1] == ':':
                     drive = source[0]
-                    rest = source[2:]
-                    lines.append(f"  {drive}: {rest}")
+                    rest = source[2:] if len(source) > 2 else '/'
+                    # Remove trailing slash if it's just the drive root
+                    if rest == '/':
+                        rest = ''
+                    lines.append(f"  {drive}:{rest}")
                 else:
                     lines.append(f"  {source}")
 
@@ -8355,6 +8362,53 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
 
         self.reply(json.dumps({"success": True, "message": "User deleted successfully"}).encode("utf-8"))
         return True
+
+    def _cloudparty_api_get_volumes(self) -> bool:
+        """Get all configured volumes."""
+        try:
+            config = self._cloudparty_load_config()
+            volumes = []
+
+            for vol in config.get('volumes', []):
+                volumes.append({
+                    'mount_path': vol.get('mount_path') or vol.get('path', '/'),
+                    'source_path': vol.get('source_path') or vol.get('source', ''),
+                    'permissions': vol.get('permissions') or vol.get('accs', {})
+                })
+
+            self.reply(json.dumps({'volumes': volumes}).encode('utf-8'))
+            return True
+        except Exception as e:
+            self.log(f"[CloudParty] Error getting volumes: {e}", 1)
+            self.reply(json.dumps({'error': str(e), 'volumes': []}).encode('utf-8'), status=500)
+            return False
+
+    def _cloudparty_api_restart_server(self) -> bool:
+        """Restart the CloudParty server."""
+        try:
+            import sys
+            import os
+
+            self.reply(json.dumps({'success': True, 'message': 'Server restarting...'}).encode('utf-8'))
+
+            # Schedule restart after a short delay
+            def restart():
+                import time
+                time.sleep(2)  # Wait for response to be sent
+                if getattr(sys, 'frozen', False):
+                    # Running as exe - restart the executable
+                    os.execv(sys.executable, [sys.executable] + sys.argv)
+                else:
+                    # Running as script
+                    os.execv(sys.executable, ['python'] + sys.argv)
+
+            import threading
+            threading.Thread(target=restart, daemon=True).start()
+            return True
+        except Exception as e:
+            self.log(f"[CloudParty] Error restarting server: {e}", 1)
+            self.reply(json.dumps({'error': str(e)}).encode('utf-8'), status=500)
+            return False
 
     def _cloudparty_api_add_volume(self, body: dict) -> bool:
         """Add a new volume."""

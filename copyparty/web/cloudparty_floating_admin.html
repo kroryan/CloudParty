@@ -404,10 +404,17 @@
 
 /* Volume List */
 .cp-volume-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     background: rgba(30, 58, 95, 0.2);
     border-radius: 8px;
     padding: 12px;
     margin-bottom: 8px;
+}
+
+.cp-volume-info {
+    flex: 1;
 }
 
 .cp-volume-path {
@@ -415,17 +422,23 @@
     font-family: monospace;
     font-size: 13px;
     margin-bottom: 4px;
+    font-weight: 600;
 }
 
 .cp-volume-source {
     color: #7aa7c7;
     font-size: 12px;
+    margin-bottom: 3px;
+}
+
+.cp-volume-perms {
+    color: #90caf9;
+    font-size: 11px;
 }
 
 .cp-volume-actions {
     display: flex;
     gap: 8px;
-    margin-top: 10px;
 }
 
 /* Stats */
@@ -799,24 +812,49 @@
             <div class="cp-section">
                 <div class="cp-section-title">
                     <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                    Add New Volume
+                    Add New Folder
                 </div>
                 <div class="cp-card">
                     <div class="cp-form-group">
-                        <label class="cp-label">Mount Path (URL path)</label>
-                        <input type="text" class="cp-input" id="new-mount-path" placeholder="/shared">
+                        <label class="cp-label">Folder Path</label>
+                        <input type="text" class="cp-input" id="new-local-path" placeholder="C:/MyFiles or D:/">
+                        <div style="margin-top: 8px; font-size: 12px; color: #90caf9;">
+                            Examples: C:/, D:/, E:/Documents
+                        </div>
                     </div>
                     <div class="cp-form-group">
-                        <label class="cp-label">Local Path</label>
-                        <input type="text" class="cp-input" id="new-local-path" placeholder="C:/MyFiles">
+                        <label class="cp-label">URL Name (how it appears in browser)</label>
+                        <input type="text" class="cp-input" id="new-mount-path" placeholder="Auto-generated">
+                        <div style="margin-top: 8px; font-size: 12px; color: #90caf9;">
+                            Leave empty to auto-generate (e.g., C:/ → /C, MyFiles → /myfiles)
+                        </div>
                     </div>
                     <div class="cp-form-group">
-                        <label class="cp-label">Read Access</label>
-                        <input type="text" class="cp-input" id="new-read-access" placeholder="* (everyone) or admin">
+                        <label class="cp-label">Who Can View Files?</label>
+                        <select class="cp-select" id="new-read-access">
+                            <option value="*">Everyone (including guests)</option>
+                            <option value="admin">Admin only</option>
+                        </select>
                     </div>
                     <button class="cp-btn cp-btn-primary cp-btn-block" onclick="cpAdmin.addVolume()">
                         <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                        Add Volume
+                        Add Folder
+                    </button>
+                </div>
+            </div>
+
+            <div class="cp-section">
+                <div class="cp-section-title">
+                    <svg viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+                    Server Control
+                </div>
+                <div class="cp-card">
+                    <p style="color: #90caf9; margin-bottom: 16px; font-size: 14px;">
+                        After adding or removing volumes, restart the server to apply changes.
+                    </p>
+                    <button class="cp-btn cp-btn-secondary cp-btn-block" onclick="cpAdmin.restartServer()">
+                        <svg viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+                        Restart Server
                     </button>
                 </div>
             </div>
@@ -1032,12 +1070,19 @@
 
             var html = '';
             volumes.forEach(function(vol) {
+                var mountPath = vol.mount_path || vol.path || '/';
+                var sourcePath = vol.source_path || vol.source || 'N/A';
+                var perms = vol.permissions || vol.accs || {};
+                var readPerm = perms.r || perms.read || 'admin';
+
                 html += '<div class="cp-volume-item">' +
-                    '<div class="cp-volume-path">' + escapeHtml(vol.path || '/') + '</div>' +
-                    '<div class="cp-volume-source">' + escapeHtml(vol.source || 'N/A') + '</div>' +
+                    '<div class="cp-volume-info">' +
+                        '<div class="cp-volume-path">🌐 ' + escapeHtml(mountPath) + '</div>' +
+                        '<div class="cp-volume-source">📁 ' + escapeHtml(sourcePath) + '</div>' +
+                        '<div class="cp-volume-perms">👥 Access: ' + escapeHtml(readPerm) + '</div>' +
+                    '</div>' +
                     '<div class="cp-volume-actions">' +
-                        '<button class="cp-btn cp-btn-secondary cp-btn-sm" onclick="cpAdmin.editVolume(\'' + escapeHtml(vol.path) + '\')">Edit</button>' +
-                        '<button class="cp-btn cp-btn-danger cp-btn-sm" onclick="cpAdmin.deleteVolume(\'' + escapeHtml(vol.path) + '\')">Delete</button>' +
+                        '<button class="cp-btn cp-btn-danger cp-btn-sm" onclick="cpAdmin.deleteVolume(\'' + escapeHtml(mountPath).replace(/'/g, "\\'") + '\')">Delete</button>' +
                     '</div>' +
                 '</div>';
             });
@@ -1125,11 +1170,32 @@
     cpAdmin.addVolume = function() {
         var mountPath = document.getElementById('new-mount-path').value.trim();
         var localPath = document.getElementById('new-local-path').value.trim();
-        var readAccess = document.getElementById('new-read-access').value.trim() || '*';
+        var readAccess = document.getElementById('new-read-access').value || '*';
 
-        if (!mountPath || !localPath) {
-            showAlert('Please enter mount path and local path');
+        if (!localPath) {
+            showAlert('Please enter a folder path (e.g., C:/, D:/, or C:/MyFiles)');
             return;
+        }
+
+        // Auto-generate mount path if empty
+        if (!mountPath) {
+            // Normalize path
+            var normPath = localPath.replace(/\\/g, '/');
+            // Check if it's a drive root (like C:/ or D:/)
+            if (normPath.match(/^[A-Z]:\/$/i)) {
+                var driveLetter = normPath.charAt(0).toUpperCase();
+                mountPath = '/' + driveLetter;
+            } else {
+                // Extract folder name from path
+                var parts = normPath.replace(/\/$/, '').split('/');
+                var name = parts[parts.length - 1] || 'files';
+                mountPath = '/' + name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+            }
+        }
+
+        // Ensure mount path starts with /
+        if (!mountPath.startsWith('/')) {
+            mountPath = '/' + mountPath;
         }
 
         apiCall('add_volume', {mount_path: mountPath, source_path: localPath, permissions: {r: readAccess, rw: 'admin'}})
@@ -1137,12 +1203,13 @@
                 if (data.success) {
                     document.getElementById('new-mount-path').value = '';
                     document.getElementById('new-local-path').value = '';
-                    document.getElementById('new-read-access').value = '';
                     loadVolumes();
-                    showAlert('Volume added! Restart may be required.');
+                    showAlert('Folder added! IMPORTANT: Click "Restart Server" below to see the new folder.');
                 } else {
                     showAlert('Error: ' + (data.error || 'Unknown error'));
                 }
+            }).catch(function(e) {
+                showAlert('Error: ' + e.message);
             });
     };
 
@@ -1192,6 +1259,31 @@
                 } else {
                     showAlert('Error: ' + (data.error || 'Unknown error'));
                 }
+            });
+    };
+
+    cpAdmin.restartServer = function() {
+        if (!confirm('Restart the server? This will reload all configurations and may disconnect active users.')) {
+            return;
+        }
+
+        showAlert('Restarting server... Please wait a few seconds and refresh the page.');
+
+        apiCall('restart_server')
+            .then(function(data) {
+                if (data.success) {
+                    // Give the server time to restart
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 3000);
+                } else {
+                    showAlert('Error: ' + (data.error || 'Unknown error'));
+                }
+            }).catch(function(e) {
+                // Server restarted, reload page
+                setTimeout(function() {
+                    window.location.reload();
+                }, 3000);
             });
     };
 
