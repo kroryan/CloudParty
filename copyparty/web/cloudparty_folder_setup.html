@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>CloudParty - Configure Folders</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0a1929">
+    <style>
+        :root {
+            --bg-primary: #0a1929;
+            --bg-secondary: #0d1117;
+            --bg-card: #132f4c;
+            --bg-input: #1e3a5f;
+            --text-primary: #e3f2fd;
+            --text-secondary: #90caf9;
+            --accent: #42a5f5;
+            --accent-hover: #64b5f6;
+            --error: #f44336;
+            --success: #4caf50;
+            --warning: #ff9800;
+            --border: #1e3a5f;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-primary);
+            padding: 20px;
+        }
+
+        .container {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 48px;
+            width: 100%;
+            max-width: 600px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .info-box {
+            background: rgba(66, 165, 245, 0.15);
+            border: 1px solid var(--accent);
+            color: var(--text-secondary);
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+
+        .info-box strong {
+            color: var(--accent);
+        }
+
+        .folder-section {
+            margin-bottom: 24px;
+        }
+
+        .folder-section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .folder-list {
+            background: var(--bg-input);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .folder-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .folder-item:last-child {
+            border-bottom: none;
+        }
+
+        .folder-item:hover {
+            background: rgba(66, 165, 245, 0.1);
+        }
+
+        .folder-item.selected {
+            background: rgba(66, 165, 245, 0.2);
+        }
+
+        .folder-checkbox {
+            width: 20px;
+            height: 20px;
+            accent-color: var(--accent);
+            margin-right: 12px;
+        }
+
+        .folder-path {
+            flex: 1;
+            font-family: monospace;
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+
+        .folder-type {
+            font-size: 12px;
+            color: var(--text-secondary);
+            background: var(--bg-primary);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .selected-folders {
+            margin-top: 24px;
+        }
+
+        .selected-folder-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--bg-input);
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .selected-folder-path {
+            font-family: monospace;
+            font-size: 14px;
+            color: var(--accent);
+        }
+
+        .remove-folder {
+            background: transparent;
+            border: none;
+            color: var(--error);
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .remove-folder:hover {
+            background: rgba(244, 67, 54, 0.2);
+        }
+
+        .custom-folder {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .custom-folder input {
+            flex: 1;
+            padding: 12px 16px;
+            background: var(--bg-input);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: monospace;
+        }
+
+        .custom-folder input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .custom-folder input::placeholder {
+            color: #5a7a94;
+        }
+
+        .add-btn {
+            padding: 12px 20px;
+            background: var(--bg-input);
+            border: 2px solid var(--accent);
+            border-radius: 8px;
+            color: var(--accent);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .add-btn:hover {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            background: var(--accent);
+            color: var(--bg-primary);
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 24px;
+        }
+
+        .btn:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: var(--border);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 2px solid var(--border);
+            color: var(--text-secondary);
+            margin-top: 12px;
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: transparent;
+        }
+
+        .error-msg {
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid var(--error);
+            color: var(--error);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .success-msg {
+            background: rgba(76, 175, 80, 0.1);
+            border: 1px solid var(--success);
+            color: var(--success);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-radius: 50%;
+            border-top-color: var(--accent);
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 24px;
+            color: var(--text-secondary);
+        }
+
+        .drive-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .drive-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 16px;
+            background: var(--bg-input);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .drive-item:hover {
+            border-color: var(--accent);
+            background: rgba(66, 165, 245, 0.1);
+        }
+
+        .drive-item.selected {
+            border-color: var(--accent);
+            background: rgba(66, 165, 245, 0.2);
+        }
+
+        .drive-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .drive-letter {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .drive-size {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 32px 24px;
+            }
+            .custom-folder {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📁 Configure Your Cloud</h1>
+            <p>Select the folders you want to share with CloudParty</p>
+        </div>
+
+        <div class="info-box">
+            <strong>💡 Tip:</strong> Select the folders you want to access through CloudParty.
+            You can add entire drives or specific folders. You can always change this later in the admin panel.
+        </div>
+
+        <div id="error-msg" class="error-msg"></div>
+        <div id="success-msg" class="success-msg"></div>
+
+        <div id="content">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Loading available drives...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var selectedFolders = [];
+        var SR = (typeof window.SR !== 'undefined') ? window.SR : '';
+
+        async function loadDrives() {
+            try {
+                const response = await fetch(SR + '/?cloudparty_api=get_drives');
+                const data = await response.json();
+
+                if (data.drives && data.drives.length > 0) {
+                    renderDrives(data.drives);
+                } else {
+                    renderManualEntry();
+                }
+            } catch (err) {
+                console.error('Error loading drives:', err);
+                renderManualEntry();
+            }
+        }
+
+        function renderDrives(drives) {
+            var html = '<div class="folder-section">';
+            html += '<div class="folder-section-title">Available Drives</div>';
+            html += '<div class="drive-list">';
+
+            drives.forEach(function(drive) {
+                html += '<div class="drive-item" onclick="toggleDrive(this, \'' + escapeHtml(drive.path) + '\')">';
+                html += '<div class="drive-icon">💾</div>';
+                html += '<div class="drive-letter">' + escapeHtml(drive.letter || drive.path) + '</div>';
+                if (drive.size) {
+                    html += '<div class="drive-size">' + formatSize(drive.size) + '</div>';
+                }
+                html += '</div>';
+            });
+
+            html += '</div></div>';
+
+            html += '<div class="folder-section">';
+            html += '<div class="folder-section-title">Or Add Custom Path</div>';
+            html += '<div class="custom-folder">';
+            html += '<input type="text" id="custom-path" placeholder="C:/MyFiles or D:/Documents">';
+            html += '<button class="add-btn" onclick="addCustomPath()">Add</button>';
+            html += '</div></div>';
+
+            html += '<div class="folder-section selected-folders">';
+            html += '<div class="folder-section-title">Selected Folders</div>';
+            html += '<div id="selected-list"></div>';
+            html += '</div>';
+
+            html += '<button class="btn" onclick="saveConfiguration()" id="save-btn" disabled>Continue Setup</button>';
+            html += '<button class="btn btn-secondary" onclick="skipSetup()">Skip for Now</button>';
+
+            document.getElementById('content').innerHTML = html;
+            updateSelectedList();
+        }
+
+        function renderManualEntry() {
+            var html = '<div class="folder-section">';
+            html += '<div class="folder-section-title">Add Folders to Share</div>';
+            html += '<div class="custom-folder">';
+            html += '<input type="text" id="custom-path" placeholder="Enter folder path (e.g., C:/MyFiles)">';
+            html += '<button class="add-btn" onclick="addCustomPath()">Add</button>';
+            html += '</div></div>';
+
+            html += '<div class="folder-section selected-folders">';
+            html += '<div class="folder-section-title">Selected Folders</div>';
+            html += '<div id="selected-list"></div>';
+            html += '</div>';
+
+            html += '<button class="btn" onclick="saveConfiguration()" id="save-btn" disabled>Continue Setup</button>';
+            html += '<button class="btn btn-secondary" onclick="skipSetup()">Skip for Now</button>';
+
+            document.getElementById('content').innerHTML = html;
+            updateSelectedList();
+        }
+
+        function toggleDrive(el, path) {
+            var index = selectedFolders.indexOf(path);
+            if (index > -1) {
+                selectedFolders.splice(index, 1);
+                el.classList.remove('selected');
+            } else {
+                selectedFolders.push(path);
+                el.classList.add('selected');
+            }
+            updateSelectedList();
+        }
+
+        function addCustomPath() {
+            var input = document.getElementById('custom-path');
+            var path = input.value.trim();
+
+            if (!path) {
+                showError('Please enter a folder path');
+                return;
+            }
+
+            // Normalize path
+            path = path.replace(/\\/g, '/');
+            if (!path.endsWith('/')) {
+                path += '/';
+            }
+
+            if (selectedFolders.indexOf(path) === -1) {
+                selectedFolders.push(path);
+                updateSelectedList();
+                input.value = '';
+            } else {
+                showError('This folder is already added');
+            }
+        }
+
+        function removeFolder(path) {
+            var index = selectedFolders.indexOf(path);
+            if (index > -1) {
+                selectedFolders.splice(index, 1);
+                updateSelectedList();
+                // Also update drive selection if applicable
+                var driveItems = document.querySelectorAll('.drive-item');
+                driveItems.forEach(function(item) {
+                    if (item.onclick && item.onclick.toString().indexOf(path) > -1) {
+                        item.classList.remove('selected');
+                    }
+                });
+            }
+        }
+
+        function updateSelectedList() {
+            var listEl = document.getElementById('selected-list');
+            var saveBtn = document.getElementById('save-btn');
+
+            if (selectedFolders.length === 0) {
+                listEl.innerHTML = '<div class="empty-state">No folders selected yet</div>';
+                saveBtn.disabled = true;
+            } else {
+                var html = '';
+                selectedFolders.forEach(function(path) {
+                    html += '<div class="selected-folder-item">';
+                    html += '<span class="selected-folder-path">' + escapeHtml(path) + '</span>';
+                    html += '<button class="remove-folder" onclick="removeFolder(\'' + escapeHtml(path) + '\')">✕ Remove</button>';
+                    html += '</div>';
+                });
+                listEl.innerHTML = html;
+                saveBtn.disabled = false;
+            }
+        }
+
+        async function saveConfiguration() {
+            if (selectedFolders.length === 0) {
+                showError('Please select at least one folder');
+                return;
+            }
+
+            var saveBtn = document.getElementById('save-btn');
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving...';
+
+            try {
+                // Create volumes from selected folders
+                var volumes = selectedFolders.map(function(path, index) {
+                    // Generate mount path from folder name
+                    var parts = path.replace(/\/$/, '').split('/');
+                    var name = parts[parts.length - 1] || parts[parts.length - 2] || 'files';
+                    // Make mount path unique
+                    var mountPath = '/' + name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+                    if (index > 0 && mountPath === '/files') {
+                        mountPath = '/files-' + index;
+                    }
+                    return {
+                        mount_path: mountPath,
+                        source_path: path,
+                        permissions: { r: 'admin', rw: 'admin' }
+                    };
+                });
+
+                const response = await fetch(SR + '/?cloudparty_api=setup_volumes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ volumes: volumes })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showSuccess('Configuration saved! Redirecting...');
+                    setTimeout(function() {
+                        window.location.href = '/';
+                    }, 2000);
+                } else {
+                    showError(data.error || 'Failed to save configuration');
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'Continue Setup';
+                }
+            } catch (err) {
+                showError('Error: ' + err.message);
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Continue Setup';
+            }
+        }
+
+        function skipSetup() {
+            window.location.href = '/';
+        }
+
+        function showError(msg) {
+            var el = document.getElementById('error-msg');
+            el.textContent = msg;
+            el.style.display = 'block';
+            setTimeout(function() { el.style.display = 'none'; }, 5000);
+        }
+
+        function showSuccess(msg) {
+            var el = document.getElementById('success-msg');
+            el.textContent = msg;
+            el.style.display = 'block';
+        }
+
+        function escapeHtml(text) {
+            var div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatSize(bytes) {
+            var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            var i = 0;
+            while (bytes >= 1024 && i < units.length - 1) {
+                bytes /= 1024;
+                i++;
+            }
+            return bytes.toFixed(1) + ' ' + units[i];
+        }
+
+        // Load drives on page load
+        loadDrives();
+    </script>
+</body>
+</html>

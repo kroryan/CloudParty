@@ -1413,6 +1413,9 @@ class HttpCli(object):
         if "cloudparty_change_password" in self.uparam:
             return self.tx_cloudparty_change_password()
 
+        if "cloudparty_folder_setup" in self.uparam:
+            return self.tx_cloudparty_folder_setup()
+
         # CloudParty: Force authentication - redirect anonymous users to login
         # Skip redirect for: login page, static resources, and certain paths
         is_cloudparty_route = any(k in self.uparam for k in ("cloudparty_login", "cloudparty_admin", "cloudparty_api"))
@@ -7589,6 +7592,29 @@ class HttpCli(object):
         self.reply(b"Change password page not found", status=404)
         return True
 
+    def tx_cloudparty_folder_setup(self) -> bool:
+        """Display the CloudParty folder setup page."""
+        # Serve the folder setup page
+        res_path = "web/cloudparty_folder_setup.html"
+        if res_path in RES:
+            return self.tx_res(res_path)
+
+        # Fallback: try to load from file
+        import pathlib
+        if getattr(sys, 'frozen', False):
+            folder_setup_file = pathlib.Path(sys.executable).parent / "copyparty" / "web" / "cloudparty_folder_setup.html"
+        else:
+            folder_setup_file = pathlib.Path(__file__).parent / "web" / "cloudparty_folder_setup.html"
+
+        if folder_setup_file.exists():
+            with open(folder_setup_file, 'r', encoding='utf-8') as f:
+                html = f.read()
+            self.reply(html.encode("utf-8", "replace"))
+            return True
+
+        self.reply(b"Folder setup page not found", status=404)
+        return True
+
     def tx_cloudparty_setup(self) -> bool:
         """Handle CloudParty first-time setup page."""
         try:
@@ -8005,6 +8031,10 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
                 return self._cloudparty_api_get_settings()
             elif action == "change_first_password":
                 return self._cloudparty_api_change_first_password(body)
+            elif action == "get_drives":
+                return self._cloudparty_api_get_drives()
+            elif action == "setup_volumes":
+                return self._cloudparty_api_setup_volumes(body)
             else:
                 self.reply(json.dumps({"error": "Unknown action"}).encode("utf-8"), status=400)
                 return False
@@ -8105,22 +8135,30 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
         # Volumes
         for vol in config.get('volumes', []):
             lines.append("")
-            lines.append(f"[{vol.get('path', '/files')}]")
-            
-            source = vol.get('source', '')
+            # Support both 'path' and 'mount_path' keys
+            mount_path = vol.get('mount_path') or vol.get('path', '/files')
+            lines.append(f"[{mount_path}]")
+
+            # Support both 'source' and 'source_path' keys
+            source = vol.get('source_path') or vol.get('source', '')
             if source:
-                # Handle Windows paths
+                # Normalize path separators
+                source = source.replace('\\', '/')
+                # Handle Windows paths (e.g., C:/path)
                 if len(source) >= 2 and source[1] == ':':
                     drive = source[0]
                     rest = source[2:]
-                    lines.append(f"{drive}: {rest}")
+                    lines.append(f"  {drive}: {rest}")
                 else:
-                    lines.append(source)
-            
-            # Access permissions
-            for perm, users in vol.get('accs', {}).items():
-                if users:
-                    lines.append(f"{perm}: {users}")
+                    lines.append(f"  {source}")
+
+            # Access permissions - support both 'accs' and 'permissions' keys
+            perms = vol.get('permissions') or vol.get('accs', {})
+            if perms:
+                lines.append("  accs:")
+                for perm, users in perms.items():
+                    if users:
+                        lines.append(f"    {perm}: {users}")
         
         lines.append("")
 
@@ -8717,4 +8755,94 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
 
         self.reply(json.dumps({"success": True, "message": "Password changed successfully"}).encode("utf-8"))
         return True
+
+    def _cloudparty_api_get_drives(self) -> bool:
+        """Get available drives on Windows."""
+        try:
+            import string
+            import shutil
+
+            drives = []
+
+            # On Windows, check all drive letters
+            if sys.platform == 'win32':
+                for letter in string.ascii_uppercase:
+                    drive_path = f"{letter}:/"
+                    try:
+                        # Check if drive exists and is accessible
+                        if os.path.exists(drive_path):
+                            total, used, free = shutil.disk_usage(drive_path)
+                            drives.append({
+                                'letter': f"{letter}:",
+                                'path': drive_path,
+                                'size': total,
+                                'free': free,
+                                'used': used
+                            })
+                    except (PermissionError, OSError):
+                        # Skip inaccessible drives
+                        pass
+            else:
+                # On Unix-like systems, just return root
+                drives.append({
+                    'letter': '/',
+                    'path': '/',
+                    'size': 0,
+                    'free': 0,
+                    'used': 0
+                })
+
+            self.reply(json.dumps({'drives': drives}).encode('utf-8'))
+            return True
+        except Exception as e:
+            self.reply(json.dumps({'error': str(e), 'drives': []}).encode('utf-8'), status=500)
+            return False
+
+    def _cloudparty_api_setup_volumes(self, body: dict) -> bool:
+        """Setup initial volumes configuration."""
+        try:
+            volumes = body.get('volumes', [])
+
+            if not volumes:
+                self.reply(json.dumps({'error': 'No volumes provided'}).encode('utf-8'), status=400)
+                return False
+
+            # Load current config
+            config = self._cloudparty_load_config()
+
+            # Clear existing volume configurations (except global and accounts)
+            # We'll rebuild with new volumes
+            if 'volumes' not in config:
+                config['volumes'] = []
+
+            # Add each volume
+            for vol in volumes:
+                mount_path = vol.get('mount_path', '/')
+                source_path = vol.get('source_path', '')
+                permissions = vol.get('permissions', {'r': 'admin', 'rw': 'admin'})
+
+                if not source_path:
+                    continue
+
+                # Normalize paths
+                source_path = source_path.replace('\\', '/')
+
+                # Add to volumes list
+                config['volumes'].append({
+                    'mount_path': mount_path,
+                    'source_path': source_path,
+                    'permissions': permissions
+                })
+
+            # Save config with volumes
+            self._cloudparty_save_config(config)
+
+            self.reply(json.dumps({'success': True, 'message': 'Volumes configured successfully'}).encode('utf-8'))
+            return True
+        except Exception as e:
+            self.log(f"[CloudParty] Error setting up volumes: {e}", 1)
+            import traceback
+            traceback.print_exc()
+            self.reply(json.dumps({'error': str(e)}).encode('utf-8'), status=500)
+            return False
 
