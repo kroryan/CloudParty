@@ -1416,10 +1416,29 @@ class HttpCli(object):
         if "cloudparty_folder_setup" in self.uparam:
             return self.tx_cloudparty_folder_setup()
 
+        # CloudParty: replace legacy splash with CloudParty views
+        if "h" in self.uparam:
+            if self.uname == "*":
+                self.redirect("", "?cloudparty_login")
+            elif self.uname == "admin" or self.uname in self.avol:
+                self.redirect("", "?cloudparty_admin")
+            else:
+                self.redirect("", self.args.R or "/")
+            return True
+
+        if "hc" in self.uparam and self.uname == "*":
+            self.redirect("", "?cloudparty_login")
+            return True
+
+        # CloudParty: Disallow legacy pw-url auth/clear for anonymous users
+        if "pw" in self.uparam and self.uname == "*":
+            self.reply(b"", status=302, headers={"Location": "/?cloudparty_login"})
+            return True
+
         # CloudParty: Force authentication - redirect anonymous users to login
         # Skip redirect for: login page, static resources, and certain paths
         is_cloudparty_route = any(k in self.uparam for k in ("cloudparty_login", "cloudparty_admin", "cloudparty_api"))
-        is_auth_route = "pw" in self.uparam or self.vpath.startswith(".cpr")
+        is_auth_route = self.vpath.startswith(".cpr")
         
         if self.uname == "*" and not is_cloudparty_route and not is_auth_route:
             # User not authenticated, redirect to CloudParty login
@@ -5731,6 +5750,14 @@ class HttpCli(object):
         return True
 
     def tx_tree(self) -> bool:
+        if self.uname == "*":
+            self.reply(
+                b'{"a":[],"error":"login required"}',
+                status=401,
+                mime="application/json",
+            )
+            return True
+
         top = self.uparam["tree"] or ""
         dst = self.vpath
         if top in [".", ".."]:

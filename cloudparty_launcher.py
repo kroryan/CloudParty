@@ -886,7 +886,8 @@ class CloudPartyTray:
 
         # Ensure a writable APPDATA to avoid fk-salt permission errors
         try:
-            writable_appdata = os.path.join(os.getcwd(), 'temp_appdata')
+            base_dir = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+            writable_appdata = os.path.join(base_dir, "CloudParty", "appdata")
             os.makedirs(writable_appdata, exist_ok=True)
             os.environ['APPDATA'] = writable_appdata
         except Exception:
@@ -937,6 +938,20 @@ class CloudPartyTray:
                     except EOFError:
                         pass
                 return
+
+        # Avoid defaulting to the executable directory as a volume when no volumes exist.
+        try:
+            volumes = self.config.get("volumes", []) if self.config else []
+            has_source = any(
+                (v.get("source") or v.get("source_path")) for v in volumes
+            )
+            if not has_source:
+                base_dir = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+                safe_root = os.path.join(base_dir, "CloudParty", "empty-root")
+                os.makedirs(safe_root, exist_ok=True)
+                os.chdir(safe_root)
+        except Exception:
+            pass
         
         print(f"[CloudParty] Configuration loaded from: {CONFIG_FILE}")
 
