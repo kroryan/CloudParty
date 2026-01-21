@@ -384,28 +384,7 @@ def load_config():
 
 def create_default_config():
     """Create a default functional configuration file."""
-    # Get default volume path - use user's Documents folder or a sensible default
-    import os
-    if sys.platform == 'win32':
-        # Try to get user's home directory
-        user_home = os.path.expanduser("~")
-        default_volume = os.path.join(user_home, "Documents")
-        if not os.path.exists(default_volume):
-            default_volume = user_home
-        # Convert to forward slashes for consistency
-        default_volume = default_volume.replace("\\", "/")
-        # Format for copyparty: "C: /path/to/folder" (drive letter, colon, space, path starting with /)
-        if len(default_volume) >= 2 and default_volume[1] == ':':
-            drive_letter = default_volume[0]
-            # Remove any leading slash from the remainder to avoid double slashes
-            path_rest = default_volume[2:].lstrip('/')
-            # Ensure the format includes a slash after the colon as required by copyparty
-            volume_line = f"{drive_letter}:/{path_rest}"
-        else:
-            volume_line = default_volume
-    else:
-        default_volume = os.path.expanduser("~/")
-        volume_line = default_volume
+    volume_line = ""
 
     default_content = f'''# CloudParty Configuration File
 # Auto-generated - please customize as needed
@@ -424,6 +403,9 @@ first_login: true
 admin: admin
 
 [/]
+# Add a source path for this volume or set it in the admin UI
+# Example: D:/CloudParty/Shared
+# (Leave empty to configure later)
 {volume_line}
 rw: admin
 '''

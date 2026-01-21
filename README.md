@@ -562,13 +562,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Made with love by the CloudParty team
 ## Known Issues
 
-**Missing trailing slash in volume paths**
+**No default volume path**
 
-As of **20/01/2026**, when adding a drive path in `cloudparty.conf` you must include a trailing slash after the drive letter. For example:
-
-```
-[/]
-  C:/Users/YourName/Documents
-```
-
-If you write the path as `C:` or `D:` without the `/`, the volume will be ignored by CloudParty. This is a known limitation of the current configuration parser.
+CloudParty no longer pre-populates a local filesystem path in `cloudparty.conf`. After first launch, add your share path in the admin UI or edit the config manually under a volume section.

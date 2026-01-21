@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import os
+from PyInstaller.utils.hooks import collect_submodules
 
 # Include all web and res files from local copyparty directory
 # This works with editable installs where collect_data_files fails
@@ -29,7 +30,7 @@ a = Analysis(
         'argon2',
         'argon2.low_level',
         'argon2.exceptions',
-    ],
+    ] + collect_submodules('copyparty'),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

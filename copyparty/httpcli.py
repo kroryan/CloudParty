@@ -8152,9 +8152,9 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
                 if len(source) >= 2 and source[1] == ':':
                     drive = source[0]
                     rest = source[2:] if len(source) > 2 else '/'
-                    # Remove trailing slash if it's just the drive root
-                    if rest == '/':
-                        rest = ''
+                    # Preserve a slash for drive roots (D:/) to avoid invalid "D:" entries.
+                    if rest in ('', '/'):
+                        rest = '/'
                     lines.append(f"  {drive}:{rest}")
                 else:
                     lines.append(f"  {source}")
@@ -8899,4 +8899,3 @@ else{err.textContent=d.error||'Setup failed';err.style.display='block'}
             traceback.print_exc()
             self.reply(json.dumps({'error': str(e)}).encode('utf-8'), status=500)
             return False
-
