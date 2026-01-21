@@ -10,6 +10,74 @@
 	<link rel="stylesheet" media="screen" href="{{ r }}/.cpr/splash.css?_={{ ts }}">
 	<link rel="stylesheet" media="screen" href="{{ r }}/.cpr/ui.css?_={{ ts }}">
 	<link rel="stylesheet" media="screen" href="{{ r }}/.cpr/cloudparty.css?_={{ ts }}">
+	<style>
+		:root {
+			--cp-bg: #0a1929;
+			--cp-panel: rgba(19, 47, 76, 0.92);
+			--cp-border: rgba(66, 165, 245, 0.25);
+			--cp-text: #e3f2fd;
+			--cp-text-dim: #90caf9;
+			--cp-accent: #42a5f5;
+		}
+
+		body {
+			background:
+				radial-gradient(1200px 520px at 80% -10%, rgba(66, 165, 245, 0.15), transparent 60%),
+				radial-gradient(900px 420px at 10% 10%, rgba(30, 73, 118, 0.35), transparent 55%),
+				linear-gradient(135deg, var(--cp-bg) 0%, #0d1117 100%);
+			color: var(--cp-text);
+		}
+
+		#wrap {
+			max-width: 960px;
+			margin: 48px auto;
+			padding: 32px;
+			border-radius: 20px;
+			background: var(--cp-panel);
+			border: 1px solid var(--cp-border);
+			box-shadow: 0 20px 60px rgba(4, 10, 18, 0.6);
+			backdrop-filter: blur(10px);
+		}
+
+		h1, h2, h3, #b, #m, #un {
+			color: var(--cp-text);
+		}
+
+		.af, .logout, #ls, #lo {
+			background: var(--cp-accent);
+			color: #0a1929;
+			border: none;
+			border-radius: 8px;
+			padding: 8px 12px;
+		}
+
+		.af:hover, .logout:hover, #ls:hover, #lo:hover {
+			filter: brightness(1.08);
+		}
+
+		.vols, .num {
+			background: rgba(10, 25, 41, 0.6);
+			border-radius: 12px;
+			border: 1px solid rgba(66, 165, 245, 0.2);
+			overflow: hidden;
+		}
+
+		.vols th, .vols td, .num td {
+			color: var(--cp-text);
+		}
+
+		.vols th {
+			background: rgba(30, 73, 118, 0.6);
+		}
+
+		#pb {
+			color: var(--cp-text-dim);
+		}
+
+		#pb a {
+			color: var(--cp-accent);
+		}
+	</style>
 {{ html_head }}
 </head>
 
@@ -232,4 +300,3 @@ document.documentElement.className = (STG && STG.cpp_thm) || "{{ this.args.theme
 </script>
 </body>
 </html>
-

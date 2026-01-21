@@ -1420,14 +1420,15 @@ class HttpCli(object):
         if "h" in self.uparam:
             if self.uname == "*":
                 self.redirect("", "?cloudparty_login")
-            elif self.uname == "admin" or self.uname in self.avol:
-                self.redirect("", "?cloudparty_admin")
             else:
                 self.redirect("", self.args.R or "/")
             return True
 
-        if "hc" in self.uparam and self.uname == "*":
-            self.redirect("", "?cloudparty_login")
+        if "hc" in self.uparam:
+            if self.uname == "*":
+                self.redirect("", "?cloudparty_login")
+            else:
+                self.redirect("", self.args.R or "/")
             return True
 
         # CloudParty: Disallow legacy pw-url auth/clear for anonymous users
@@ -3334,8 +3335,8 @@ class HttpCli(object):
             if ok:
                 msg = "new password OK"
 
-        redir = (self.args.SRS + "?h") if ok else ""
-        h2 = '<a href="' + self.args.SRS + '?h">continue</a>'
+        redir = self.args.SRS if ok else ""
+        h2 = '<a href="' + self.args.SRS + '">continue</a>'
         html = self.j2s("msg", h1=msg, h2=h2, redir=redir)
         self.reply(html.encode("utf-8"))
         return True
@@ -3400,7 +3401,7 @@ class HttpCli(object):
             self.asrv.forget_session(self.conn.hsrv.broker, self.uname)
         self.get_pwd_cookie("x")
 
-        dst = self.args.idp_logout or (self.args.SRS + "?h")
+        dst = self.args.idp_logout or (self.args.SRS + "?cloudparty_login")
         h2 = '<a href="' + dst + '">continue</a>'
         html = self.j2s("msg", h1="ok bye", h2=h2, redir=dst)
         self.reply(html.encode("utf-8"))
