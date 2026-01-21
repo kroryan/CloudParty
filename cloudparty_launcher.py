@@ -689,9 +689,15 @@ class CloudPartyTray:
             # Try to load the custom icon file
             icon_paths = [
                 APP_DIR / "cloudparty.ico",
-                APP_DIR / "app-icon.ico", 
+                APP_DIR / "app-icon.ico",
                 APP_DIR / "app-icon.png",
             ]
+            if getattr(sys, "_MEIPASS", None):
+                icon_paths.extend([
+                    Path(sys._MEIPASS) / "cloudparty.ico",
+                    Path(sys._MEIPASS) / "app-icon.ico",
+                    Path(sys._MEIPASS) / "app-icon.png",
+                ])
             
             for icon_path in icon_paths:
                 if icon_path.exists():

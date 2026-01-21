@@ -45,6 +45,7 @@ pyinstaller --clean --noconfirm cloudparty.spec
 echo [5/5] Copying configuration files...
 if exist dist\CloudParty.exe (
     copy cloudparty.example.conf dist\ >nul
+    copy cloudparty.ico dist\ >nul
     copy copyparty\web\cloudparty.css dist\ >nul 2>nul
     
     echo.
