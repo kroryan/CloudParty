@@ -77,6 +77,30 @@
 		#pb a {
 			color: var(--cp-accent);
 		}
+
+		.cp-admin-actions {
+			display: flex;
+			gap: 10px;
+			margin: 18px 0 8px;
+			flex-wrap: wrap;
+		}
+
+		.cp-admin-btn {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			padding: 8px 14px;
+			border-radius: 10px;
+			background: rgba(66, 165, 245, 0.18);
+			border: 1px solid rgba(66, 165, 245, 0.45);
+			color: var(--cp-text);
+			text-decoration: none;
+			font-weight: 600;
+		}
+
+		.cp-admin-btn:hover {
+			background: rgba(66, 165, 245, 0.32);
+		}
 	</style>
 {{ html_head }}
 </head>
@@ -96,6 +120,12 @@
 		<a id="c" href="{{ r }}/?pw=x" class="logout">logout</a>
 				{%- endif %}
 		<p><span id="m">welcome back,</span> <strong id="un">{{ this.uname|e }}</strong></p>
+				{%- if this.uname == 'admin' or this.uname in this.avol %}
+		<div class="cp-admin-actions">
+			<a class="cp-admin-btn" href="{{ r }}/?cloudparty_admin=users">Admin Settings</a>
+			<a class="cp-admin-btn" href="{{ r }}/?cloudparty_admin=users&open_console=1">Console</a>
+		</div>
+				{%- endif %}
 			{%- endif %}
 		{%- endif %}
 

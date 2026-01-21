@@ -1082,6 +1082,13 @@
             pollTimer = setInterval(fetchLogs, 1000);
         }
 
+        try {
+            var params = new URLSearchParams(window.location.search);
+            if (params.get('open_console') === '1') {
+                setOpen(true);
+            }
+        } catch(e) {}
+
         openBtn.addEventListener('click', function(e){ e.preventDefault(); setOpen(true); });
         ov.addEventListener('click', function(){ setOpen(false); });
         btnClose.addEventListener('click', function(){ setOpen(false); });

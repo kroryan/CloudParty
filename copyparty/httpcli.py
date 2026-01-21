@@ -1431,6 +1431,12 @@ class HttpCli(object):
                 self.redirect("", self.args.R or "/")
             return True
 
+        if not self.vpath and not self.uparam and self.uname != "*":
+            if self.rvol and "" not in self.rvol:
+                dst = "/" + self.rvol[0].strip("/") + "/"
+                self.reply(b"", status=302, headers={"Location": dst})
+                return True
+
         # CloudParty: Disallow legacy pw-url auth/clear for anonymous users
         if "pw" in self.uparam and self.uname == "*":
             self.reply(b"", status=302, headers={"Location": "/?cloudparty_login"})
