@@ -5,7 +5,7 @@
 
 
 
-CloudParty is a modern, self-hosted personal cloud server designed for simplicity. Think of it as your own Nextcloud or Google Drive, but without the complex setup and configuration headaches. Just run the executable and you have your own secure file sharing server.
+CloudParty is a modern, self-hosted personal cloud server designed for simplicity. Think of it as your own Nextcloud or Google Drive, but without the complex setup and configuration headaches. Just run the executable and you have your own "secure" file sharing server. I mean i do what i can but im not a professional so please use it at your own risk, i would not expose this to the internet but its okey to use it with tailscale.
 
 ![CloudParty](https://img.shields.io/badge/version-1.0.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
