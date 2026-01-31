@@ -118,6 +118,33 @@ else:
     except Exception as e:
         _debug_log(f"PIL import failed: {e}")
 
+
+def _is_dir_writable(path):
+    try:
+        test_path = Path(path) / ".cloudparty_write_test"
+        with open(test_path, "w", encoding="utf-8") as f:
+            f.write("ok")
+        test_path.unlink(missing_ok=True)
+        return True
+    except Exception:
+        return False
+
+
+def resolve_config_dir(app_dir):
+    """Resolve a writable config directory."""
+    override = os.environ.get("CLOUDPARTY_CONFIG_DIR")
+    if override:
+        return Path(override).expanduser()
+
+    if CURRENT_PLATFORM == "windows":
+        return app_dir
+
+    # Prefer app directory if writable; otherwise use XDG config dir.
+    if _is_dir_writable(app_dir):
+        return app_dir
+
+    return Path(get_config_dir())
+
 def get_config_dir():
     """Get platform-specific config directory."""
     if CURRENT_PLATFORM == 'windows':
@@ -151,8 +178,15 @@ if FROZEN:
 else:
     APP_DIR = Path(__file__).parent
 
-CONFIG_FILE = APP_DIR / "cloudparty.conf"
-EXAMPLE_CONFIG = APP_DIR / "cloudparty.example.conf"
+CONFIG_DIR = resolve_config_dir(APP_DIR)
+try:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+except Exception:
+    pass
+
+CONFIG_FILE = CONFIG_DIR / "cloudparty.conf"
+EXAMPLE_CONFIG = CONFIG_DIR / "cloudparty.example.conf"
+EXAMPLE_CONFIG_SOURCE = APP_DIR / "cloudparty.example.conf"
 
 # Windows console handling
 if sys.platform == 'win32':
@@ -270,9 +304,11 @@ def load_config():
     if not CONFIG_FILE.exists():
         print(f"[CloudParty] Config file not found: {CONFIG_FILE}")
         print(f"[CloudParty] Creating default config...")
-        create_default_config()
-        print(f"[CloudParty] Default config created: {CONFIG_FILE}")
-        print(f"[CloudParty] You will be prompted to set up your admin account.")
+        if create_default_config():
+            print(f"[CloudParty] Default config created: {CONFIG_FILE}")
+            print(f"[CloudParty] You will be prompted to set up your admin account.")
+        else:
+            print(f"[CloudParty] Failed to create default config at: {CONFIG_FILE}")
         # Also create example config for reference
         create_example_config()
     
@@ -467,12 +503,27 @@ rw: admin
     try:
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             f.write(default_content)
+        return True
     except Exception as e:
         print(f"[CloudParty] Error creating default config: {e}")
+        return False
 
 
 def create_example_config():
     """Create an example configuration file."""
+    if EXAMPLE_CONFIG_SOURCE.exists():
+        try:
+            if EXAMPLE_CONFIG_SOURCE.resolve() != EXAMPLE_CONFIG.resolve():
+                with open(EXAMPLE_CONFIG_SOURCE, 'r', encoding='utf-8') as src:
+                    content = src.read()
+                with open(EXAMPLE_CONFIG, 'w', encoding='utf-8') as dst:
+                    dst.write(content)
+                print(f"[CloudParty] Example config created: {EXAMPLE_CONFIG}")
+                return True
+        except Exception as e:
+            print(f"[CloudParty] Error copying example config: {e}")
+            return False
+
     example_content = '''# CloudParty Configuration File
 # Copy this file to cloudparty.conf and modify as needed
 # -*- mode: yaml -*-
@@ -568,8 +619,10 @@ def create_example_config():
         with open(EXAMPLE_CONFIG, 'w', encoding='utf-8') as f:
             f.write(example_content)
         print(f"[CloudParty] Example config created: {EXAMPLE_CONFIG}")
+        return True
     except Exception as e:
         print(f"[CloudParty] Error creating example config: {e}")
+        return False
 
 
 def build_args_from_config(config):
