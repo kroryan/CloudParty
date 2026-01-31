@@ -1,6 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import importlib.util
 import os
+import sys
 from PyInstaller.utils.hooks import collect_submodules
 
 # Include all web and res files from local copyparty directory
@@ -12,13 +14,24 @@ local_datas = [
     ('copyparty/res', 'copyparty/res'),
     # Config files
     ('cloudparty.example.conf', '.'),
-    ('cloudparty.ico', '.'),
-    ('app-icon.png', '.'),  # For cross-platform icon support
 ]
+
+# Add PNG icon for Linux
+if os.path.exists('app-icon.png'):
+    local_datas.append(('app-icon.png', '.'))
 
 # Only add SECURITY_AUDIT_REPORT.md if it exists
 if os.path.exists('SECURITY_AUDIT_REPORT.md'):
     local_datas.append(('SECURITY_AUDIT_REPORT.md', '.'))
+
+# Linux-specific hidden imports (optional based on installed backends)
+def _optional_hidden(name):
+    return [name] if importlib.util.find_spec(name) else []
+
+linux_hiddenimports = (
+    _optional_hidden('pystray._appindicator')  # Linux AppIndicator backend
+    + _optional_hidden('pystray._dbus')        # Linux DBus backend
+)
 
 a = Analysis(
     ['cloudparty_launcher.py'],
@@ -26,12 +39,11 @@ a = Analysis(
     binaries=[],
     datas=local_datas,
     hiddenimports=[
-        'pystray._win32',
         'PIL._tkinter_finder',
         'argon2',
         'argon2.low_level',
         'argon2.exceptions',
-    ] + collect_submodules('copyparty'),
+    ] + linux_hiddenimports + collect_submodules('copyparty'),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -47,18 +59,17 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='CloudParty',
+    name='cloudparty',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,  # Hide console - runs as tray app
+    console=True,  # Linux: keep console visible for debugging
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['cloudparty.ico'],
 )

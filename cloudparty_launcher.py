@@ -90,6 +90,48 @@ try:
 except ImportError:
     pass
 
+# Platform detection for cross-platform support
+import platform
+
+def get_platform():
+    """Get the current platform with consistent naming."""
+    system = platform.system().lower()
+    if system == 'windows':
+        return 'windows'
+    elif system == 'darwin':
+        return 'macos'
+    elif system == 'linux':
+        return 'linux'
+    return sys.platform.lower()
+
+CURRENT_PLATFORM = get_platform()
+
+def get_config_dir():
+    """Get platform-specific config directory."""
+    if CURRENT_PLATFORM == 'windows':
+        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+        return os.path.join(base, "CloudParty")
+    else:
+        # Linux/macOS: Use XDG_CONFIG_HOME or ~/.config
+        xdg_config = os.environ.get("XDG_CONFIG_HOME")
+        if xdg_config:
+            return os.path.join(xdg_config, "cloudparty")
+        else:
+            return os.path.expanduser("~/.config/cloudparty")
+
+def get_data_dir():
+    """Get platform-specific data directory."""
+    if CURRENT_PLATFORM == 'windows':
+        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+        return os.path.join(base, "CloudParty", "appdata")
+    else:
+        # Linux/macOS: Use XDG_DATA_HOME or ~/.local/share
+        xdg_data = os.environ.get("XDG_DATA_HOME")
+        if xdg_data:
+            return os.path.join(xdg_data, "cloudparty")
+        else:
+            return os.path.expanduser("~/.local/share/cloudparty")
+
 # Determine if we're running as a frozen executable
 FROZEN = getattr(sys, 'frozen', False)
 if FROZEN:
@@ -685,19 +727,29 @@ class CloudPartyTray:
             
         try:
             from PIL import Image
-            
-            # Try to load the custom icon file
-            icon_paths = [
-                APP_DIR / "cloudparty.ico",
-                APP_DIR / "app-icon.ico",
-                APP_DIR / "app-icon.png",
-            ]
-            if getattr(sys, "_MEIPASS", None):
-                icon_paths.extend([
-                    Path(sys._MEIPASS) / "cloudparty.ico",
-                    Path(sys._MEIPASS) / "app-icon.ico",
-                    Path(sys._MEIPASS) / "app-icon.png",
-                ])
+
+            # Platform-specific icon priority
+            if CURRENT_PLATFORM == 'windows':
+                icon_paths = [
+                    APP_DIR / "cloudparty.ico",
+                    APP_DIR / "app-icon.ico",
+                ]
+                if getattr(sys, "_MEIPASS", None):
+                    icon_paths.extend([
+                        Path(sys._MEIPASS) / "cloudparty.ico",
+                        Path(sys._MEIPASS) / "app-icon.ico",
+                    ])
+            else:
+                # Linux/macOS prefer PNG
+                icon_paths = [
+                    APP_DIR / "app-icon.png",
+                    APP_DIR / "cloudparty.png",
+                ]
+                if getattr(sys, "_MEIPASS", None):
+                    icon_paths.extend([
+                        Path(sys._MEIPASS) / "app-icon.png",
+                        Path(sys._MEIPASS) / "cloudparty.png",
+                    ])
             
             for icon_path in icon_paths:
                 if icon_path.exists():
@@ -884,12 +936,15 @@ class CloudPartyTray:
         """Main entry point."""
         _debug_log("run() called")
 
-        # Ensure a writable APPDATA to avoid fk-salt permission errors
+        # Ensure a writable appdata directory to avoid fk-salt permission errors
         try:
-            base_dir = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-            writable_appdata = os.path.join(base_dir, "CloudParty", "appdata")
+            writable_appdata = get_data_dir()
             os.makedirs(writable_appdata, exist_ok=True)
-            os.environ['APPDATA'] = writable_appdata
+            # Set environment variable that copyparty uses
+            if CURRENT_PLATFORM == 'windows':
+                os.environ['APPDATA'] = writable_appdata
+            else:
+                os.environ['XDG_DATA_HOME'] = writable_appdata
         except Exception:
             pass
 
@@ -946,8 +1001,7 @@ class CloudPartyTray:
                 (v.get("source") or v.get("source_path")) for v in volumes
             )
             if not has_source:
-                base_dir = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-                safe_root = os.path.join(base_dir, "CloudParty", "empty-root")
+                safe_root = os.path.join(get_data_dir(), "empty-root")
                 os.makedirs(safe_root, exist_ok=True)
                 os.chdir(safe_root)
         except Exception:
