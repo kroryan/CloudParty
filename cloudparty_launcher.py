@@ -57,6 +57,7 @@ import threading
 import time
 import subprocess
 from pathlib import Path
+import platform
 
 # Now safe to import copyparty (which checks sys.stdout.isatty())
 from copyparty.cloudparty_console import install_stdio_capture
@@ -74,25 +75,6 @@ def is_running():
     with _running_lock:
         return _running
 
-# Check for optional dependencies early
-HAVE_PYSTRAY = False
-HAVE_PIL = False
-
-try:
-    import pystray
-    HAVE_PYSTRAY = True
-except ImportError:
-    pass
-
-try:
-    from PIL import Image, ImageDraw
-    HAVE_PIL = True
-except ImportError:
-    pass
-
-# Platform detection for cross-platform support
-import platform
-
 def get_platform():
     """Get the current platform with consistent naming."""
     system = platform.system().lower()
@@ -105,6 +87,36 @@ def get_platform():
     return sys.platform.lower()
 
 CURRENT_PLATFORM = get_platform()
+
+def _env_truthy(name):
+    val = os.environ.get(name, "")
+    return val.lower() in ("1", "true", "yes", "on")
+
+def _has_display():
+    return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+
+# Check for optional dependencies early (avoid tray on headless systems)
+HAVE_PYSTRAY = False
+HAVE_PIL = False
+
+disable_tray = _env_truthy("CLOUDPARTY_NO_TRAY") or _env_truthy("CLOUDPARTY_HEADLESS")
+if CURRENT_PLATFORM == 'linux' and not _has_display():
+    disable_tray = True
+
+if disable_tray:
+    _debug_log("Tray disabled (headless or env override)")
+else:
+    try:
+        import pystray
+        HAVE_PYSTRAY = True
+    except Exception as e:
+        _debug_log(f"pystray import failed: {e}")
+
+    try:
+        from PIL import Image, ImageDraw
+        HAVE_PIL = True
+    except Exception as e:
+        _debug_log(f"PIL import failed: {e}")
 
 def get_config_dir():
     """Get platform-specific config directory."""
