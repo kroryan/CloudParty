@@ -663,6 +663,12 @@ def build_args_from_config(config):
             print(f"[CloudParty] Warning: Volume {mount_path} has no source directory, skipping")
             continue
 
+        # Skip Windows drive-letter paths on non-Windows hosts (breaks -v parsing)
+        if CURRENT_PLATFORM != 'windows':
+            if len(source_dir) >= 3 and source_dir[1] == ':' and source_dir[2] in ('/', '\\'):
+                print(f"[CloudParty] Warning: Windows path '{source_dir}' on non-Windows host; skipping volume {mount_path}")
+                continue
+
         # Normalize source path (use forward slashes)
         source_dir = source_dir.replace('\\', '/')
         # Ensure drive-letter paths have a leading slash after the colon (e.g., "C:/path")
