@@ -287,7 +287,7 @@ def load_config():
     """Load configuration from cloudparty.conf file."""
     config = {
         'port': 3923,
-        'interface': '::',
+        'interface': '0.0.0.0',
         'accounts': {},
         'volumes': [],
         'start_hidden': True,
@@ -536,7 +536,7 @@ def create_example_config():
   p: 3923
   
   # Interface to bind to (:: = all IPv4/IPv6, 0.0.0.0 = all IPv4)
-  i: ::
+  i: 0.0.0.0
   
   # Start with console hidden (tray app mode)
   start_hidden: true
